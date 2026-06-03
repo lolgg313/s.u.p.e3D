@@ -1,0 +1,3424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPS Creator - Classic Edition (Instanced Rendering + Object Pooling + Triggers)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="ui">
+        <div id="mode-indicator">EDIT MODE</div>
+        <div id="crosshair"></div>
+        
+        <div id="gameOver">
+            <h1>GAME OVER</h1>
+            <span>PRESS 'E' TO RESET</span>
+        </div>
+        
+        <div id="triggerOverlay">
+            <h1 id="triggerTextValue">DANGER ZONE</h1>
+            <span>PRESS 'E' TO RESET</span>
+        </div>
+
+        <div id="hud">
+            <div class="hud-item">
+                <span class="hud-label"><span class="material-symbols-rounded">favorite</span> HEALTH</span>
+                <span class="hud-value" id="healthValue">100</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label"><span class="material-symbols-rounded">bolt</span> AMMO</span>
+                <span class="hud-value" id="ammoValue">999</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label"><span class="material-symbols-rounded">smart_toy</span> ENEMIES</span>
+                <span class="hud-value" id="enemiesValue">0</span>
+            </div>
+        </div>
+
+        <!-- instructions 
+        <div id="instructions">
+            <h3>CONTROLS</h3>
+            <p><strong style="color:#fff">EDIT MODE:</strong></p>
+            <p>WASD: Fly Camera</p>
+            <p>Left Click: Action</p>
+            <p>E: Play/Edit Toggle</p>
+            <br>
+            <p><strong style="color:#fff">PLAY MODE:</strong></p>
+            <p>WASD: Move</p>
+            <p>Space: Jump</p>
+            <p>Click: Shoot</p>
+        </div> -->
+    </div>
+
+    <div id="editor">
+        <h2><span class="material-symbols-rounded">construction</span> FPS CREATOR v2.0</h2>
+        
+        <div class="control-group">
+            <h3>MODE</h3>
+            <button class="btn" id="toggleMode">
+                <span class="material-symbols-rounded">sports_esports</span> SWITCH TO PLAY MODE
+            </button>
+        </div>
+
+        <div class="control-group">
+            <h3>PLACEMENT TOOL</h3>
+            <label>
+                <input type="radio" name="tool" value="none" checked> 
+                <div class="tool-label">
+                    <span class="material-symbols-rounded">visibility</span> NONE (FLY)
+                </div>
+            </label>
+            <label>
+                <input type="radio" name="tool" value="wall">
+                <div class="tool-label">
+                    <span class="material-symbols-rounded">grid_view</span> WALL
+                </div>
+            </label>
+            <label>
+                <input type="radio" name="tool" value="floor">
+                <div class="tool-label">
+                    <span class="material-symbols-rounded">layers</span> FLOOR
+                </div>
+            </label>
+            <label>
+                <input type="radio" name="tool" value="model">
+                <div class="tool-label">
+                    <span class="material-symbols-rounded">deployed_code</span> MODEL
+                </div>
+            </label>
+            <label>
+                <input type="radio" name="tool" value="enemy">
+                <div class="tool-label">
+                    <span class="material-symbols-rounded">smart_toy</span> ENEMY
+                </div>
+            </label>
+            <label>
+                <input type="radio" name="tool" value="trigger">
+                <div class="tool-label">
+                    <span class="material-symbols-rounded">sensors</span> TRIGGER ZONE
+                </div>
+            </label>
+            <label>
+                <input type="radio" name="tool" value="erase">
+                <div class="tool-label">
+                    <span class="material-symbols-rounded">ink_eraser</span> ERASE
+                </div>
+            </label>
+            <label>
+                <input type="radio" name="tool" value="spawn">
+                <div class="tool-label">
+                    <span class="material-symbols-rounded">person_pin_circle</span> SPAWN POINT
+                </div>
+            </label>
+        </div>
+
+        <div class="control-group dependent hidden" id="triggerSettings">
+            <h3>TRIGGER SETTINGS</h3>
+            <label>Message (displayed when player enters):</label>
+            <input type="text" id="triggerTextInput" value="AREA RESTRICTED" placeholder="Enter text here...">
+            <p style="font-size: 10px; margin-top: 5px; color: #0f0;">* Click existing triggers to UPDATE text.</p>
+        </div>
+        
+        <div class="control-group dependent hidden" id="enemyAppearanceGroup">
+            <h3>ENEMY APPEARANCE</h3>
+            <label>
+                <input type="radio" name="enemyType" value="default" checked> DEFAULT (RED BOT)
+            </label>
+            <label>
+                <input type="radio" name="enemyType" value="custom"> CUSTOM MODEL (.GLB)
+            </label>
+            <input type="file" id="enemyModelFile" accept=".glb" style="margin-top:5px; opacity: 0.5; pointer-events: none;">
+            <p style="font-size: 10px; margin-top: 5px; color: #0f0;">* Upload a .glb to replace enemies.</p>
+        </div>
+
+        <div class="control-group dependent hidden" id="wallTextureGroup">
+            <h3>WALL TEXTURE</h3>
+            <div class="texture-grid" id="wallTextures"></div>
+        </div>
+
+        <div class="control-group dependent hidden" id="floorTextureGroup">
+            <h3>FLOOR TEXTURE</h3>
+            <div class="texture-grid" id="floorTextures"></div>
+            
+            <div class="sound-settings-group">
+                <label class="sound-label">FOOTSTEP SOUND (For Selected)</label>
+                <input type="file" id="floorSoundInput" accept="audio/*" class="sound-input">
+                <p id="floorSoundName" class="sound-status">
+                    Current: Default
+                </p>
+                <button class="btn" id="resetFloorSound">
+                    RESET TO DEFAULT
+                </button>
+            </div>
+        </div>
+
+        <div class="control-group dependent hidden" id="modelSettingsGroup">
+            <h3>MODEL SETTINGS</h3>
+            <label>Select Loaded Model:</label>
+            <select id="modelSelector" class="btn" style="width:100%; margin-bottom:10px; text-align:left; background:#333; color:#fff; border:1px solid #555;">
+                <option value="">-- No Models Loaded --</option>
+            </select>
+            
+            <label>Import New (.GLB):</label>
+            <input type="file" id="modelInput" accept=".glb">
+            <p style="font-size: 10px; margin-top: 5px; color: #0f0;">* Uploads and selects model for placement.</p>
+        </div>
+
+        <div class="control-group">
+            <h3>AUDIO SETTINGS</h3>
+            <label>Custom Shoot Sound (.mp3/.wav)</label>
+            <input type="file" id="shootSoundInput" accept="audio/*">
+            
+            <p id="shootSoundName" style="font-size: 11px; color: #4ec9b0; margin-top: 5px; margin-bottom: 5px; display: none; font-style: italic;">
+                Current: None
+            </p>
+
+            <button class="btn" id="testSound">TEST SHOOT SOUND</button>
+            <p style="font-size: 10px; margin-top: 5px; color: #0f0;">* If empty, uses default laser sound.</p>
+        </div>
+
+        <div class="control-group">
+            <h3>MAP CONTROLS</h3>
+            <div class="map-actions-grid">
+                <button class="btn btn-primary" id="saveMap">
+                    <span class="material-symbols-rounded">save</span> SAVE
+                </button>
+
+                <button class="btn btn-secondary" id="loadMap">
+                    <span class="material-symbols-rounded">file_open</span> LOAD
+                </button>
+
+                <button class="btn btn-danger" id="clearMap">
+                    <span class="material-symbols-rounded">delete_forever</span> CLEAR MAP
+                </button>
+            </div>
+            
+            <input type="file" id="fileInput" accept=".json" style="display: none;">
+        </div>
+
+        <div class="control-group">
+            <h3>MAP SIZE</h3>
+            <label>Width: <span id="widthValue">20</span></label>
+            <input type="range" id="mapWidth" min="10" max="50" value="20">
+            <label>Length: <span id="lengthValue">20</span></label>
+            <input type="range" id="mapLength" min="10" max="50" value="20">
+            <button class="btn" id="resizeMap">RESIZE MAP</button>
+        </div>
+        <input type="file" id="hiddenTextureInput" accept="image/*" style="display: none;">
+    </div>
+
+    <div id="modelManager">
+        <div id="inspector">
+            <h3>PROPERTIES</h3>
+            <div id="inspectorContent" class="hidden">
+
+                <div class="rename-container">
+                    <h4 id="modelNameDisplay">Model Name</h4>
+                    
+                    <input type="text" id="modelNameInput" class="hidden">
+                    
+                    <button id="editNameBtn" title="Rename Object">
+                        <span class="material-symbols-rounded">edit</span>
+                    </button>
+                </div>
+                
+                <div class="gizmo-controls">
+                    <button class="gizmo-btn active" onclick="setGizmoMode('translate')" title="Move">
+                        <span class="material-symbols-rounded">open_with</span> MOVE
+                    </button>
+                    <button class="gizmo-btn" onclick="setGizmoMode('rotate')" title="Rotate">
+                        <span class="material-symbols-rounded">sync</span> ROTATE
+                    </button>
+                    <button class="gizmo-btn" onclick="setGizmoMode('scale')" title="Scale">
+                        <span class="material-symbols-rounded">open_in_full</span> SCALE
+                    </button>
+                </div>
+
+                <div style="margin-bottom:15px;">
+                    <label>POSITION</label>
+                    <div class="transform-row">
+                        <label style="color:#d94444">X</label><input type="number" id="posX" step="0.5">
+                        <label style="color:#4ec9b0">Y</label><input type="number" id="posY" step="0.5">
+                        <label style="color:#007fd4">Z</label><input type="number" id="posZ" step="0.5">
+                    </div>
+                </div>
+
+                <div style="margin-bottom:15px;">
+                    <label>ROTATION</label>
+                    <div class="transform-row">
+                        <label style="color:#d94444">X</label><input type="number" id="rotX" step="15">
+                        <label style="color:#4ec9b0">Y</label><input type="number" id="rotY" step="15">
+                        <label style="color:#007fd4">Z</label><input type="number" id="rotZ" step="15">
+                    </div>
+                </div>
+
+                <div>
+                    <label>SCALE</label>
+                    <div class="transform-row">
+                        <label style="color:#d94444">X</label><input type="number" id="sclX" step="0.1">
+                        <label style="color:#4ec9b0">Y</label><input type="number" id="sclY" step="0.1">
+                        <label style="color:#007fd4">Z</label><input type="number" id="sclZ" step="0.1">
+                    </div>
+                </div>
+
+                <div id="enemyProperties" class="hidden" style="margin-top:15px; border-top:1px solid #3e3e42; padding-top:10px;">
+                    
+                    <label style="color:#ff6666; font-weight:bold; margin-bottom:10px; display:block;">ENEMY STATS</label>
+                    <div style="margin-bottom:10px;">
+                        <label>MAX HEALTH</label>
+                        <input type="number" id="enemyHealth" step="1" min="1">
+                    </div>
+                    <div style="margin-bottom:10px;">
+                        <label>SPEED</label>
+                        <input type="number" id="enemySpeed" step="0.5" min="0">
+                    </div>
+                    <div style="margin-bottom:10px;">
+                        <label>DAMAGE</label>
+                        <input type="number" id="enemyDamage" step="1" min="0">
+                    </div>
+
+                    <div style="margin-top:15px; padding-top:10px; border-top:1px dashed #444;">
+                        <label style="color:#ffff00; font-weight:bold;">ENEMY MODEL</label>
+                        <select id="enemyVisualType" class="btn" style="width:100%; margin-top:5px; text-align:left; background:#333; color:#fff; border:1px solid #555;">
+                            <option value="default">Default (Red Bot)</option>
+                            <option value="custom">Custom Model (.GLB)</option>
+                            <option value="none">No Model (Invisible)</option>
+                        </select>
+                        
+                        <div id="enemyCustomModelGroup" class="hidden" style="margin-top:10px;">
+                                <label style="font-size:10px; color:#aaa;">REPLACE MODEL (.GLB)</label>
+                                <input type="file" id="enemyReplaceModelInput" accept=".glb" style="font-size: 10px; width: 100%;">
+                        </div>
+                    </div>
+                    <div style="margin-top:15px; padding-top:10px; border-top:1px dashed #444;">
+                        <label style="color:#4ec9b0">LOOP SOUND (ALIVE)</label>
+                        <input type="file" id="enemySoundInput" accept="audio/*" style="font-size: 10px; width:100%; margin-bottom:5px;">
+                        
+                        <p id="enemySoundName" style="font-size: 9px; color: #4ec9b0; margin-bottom: 5px; display: none; font-style: italic;">Current: None</p>
+                        <button class="btn" id="resetEnemySound" style="font-size:10px; background:#444;">RESET LOOP</button>
+                    </div>
+
+                    <div style="margin-top:15px; padding-top:10px; border-top:1px dashed #444;">
+                        <label style="color:#d94444">DEATH SOUND</label>
+                        <input type="file" id="enemyDeathSoundInput" accept="audio/*" style="font-size: 10px; width:100%; margin-bottom:5px;">
+                        
+                        <p id="enemyDeathSoundName" style="font-size: 9px; color: #d94444; margin-bottom: 5px; display: none; font-style: italic;">Current: None</p>
+                        
+                        <button class="btn" id="resetEnemyDeathSound" style="font-size:10px; background:#444;">RESET DEATH SOUND</button>
+                        <p style="font-size: 9px; margin-top: 5px; color: #888;">* Plays once when enemy dies.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="inspectorPlaceholder" style="padding:20px; text-align:center; color:#666;">
+                Select an object from the Scene Hierarchy to edit properties.
+            </div>
+        </div>
+
+        <div style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+            <h3>SCENE HIERARCHY</h3>
+            <div id="modelList">
+                </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
+        // --- UNDO SYSTEM INJECTION ---
+        let undoStack = [];
+        const MAX_UNDO = 50;
+
+        // Creates a deep copy of the current environment and entities
+        function cloneGameState() {
+            return {
+                walls: Array.from(mapData.walls.entries()),
+                floors: Array.from(mapData.floors.entries()),
+                triggers: JSON.parse(JSON.stringify(mapData.triggers)),
+                playerSpawn: JSON.parse(JSON.stringify(mapData.playerSpawn)),
+                models: JSON.parse(JSON.stringify(importedModelsData))
+            };
+        }
+
+        // Saves state before an action modifies the scene
+        function saveHistoryState() {
+            if (STATE.mode !== 'edit') return;
+            undoStack.push(cloneGameState());
+            if (undoStack.length > MAX_UNDO) undoStack.shift();
+        }
+
+        // Restores the previous state
+        function performUndo() {
+            if (undoStack.length === 0 || STATE.mode !== 'edit') return;
+            const prevState = undoStack.pop();
+
+            // Restore MapData structures
+            mapData.walls = new Map(prevState.walls);
+            mapData.floors = new Map(prevState.floors);
+            mapData.triggers = prevState.triggers;
+            mapData.playerSpawn = prevState.playerSpawn;
+
+            // Restore Models data
+            importedModelsData = prevState.models;
+
+            // Refresh environment visuals
+            updateSceneVisuals();
+            updateSpawnVisual();
+
+            // Re-spawn all imported models/enemies safely
+            importedModelsGroup.clear();
+            importedModelsData.forEach(modelData => {
+                spawnModelVisuals(modelData, false); // false prevents auto-selecting during loop
+            });
+            
+            // Refresh UI
+            updateModelListUI();
+            selectModel(null); // Detach gizmo to prevent ghost manipulations
+        }
+
+        // Hook 1: Listen for Ctrl+Z
+        window.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.code === 'KeyZ') {
+                e.preventDefault();
+                performUndo();
+            }
+        });
+
+        // Hook 2: Mouse down on canvas (Brush/Placement/Erase strokes)
+        window.addEventListener('mousedown', (e) => {
+            if (e.target.closest('#editor') || e.target.closest('#modelManager')) return;
+            if (STATE.mode === 'edit' && (e.button === 0 || e.button === 2)) {
+                saveHistoryState();
+            }
+        }, true); // Capture phase
+
+        // Hook 3: Global function overrides (Safe monkey-patching)
+        const _origDeleteModel = deleteModel;
+        deleteModel = function(id) { saveHistoryState(); _origDeleteModel(id); };
+
+        const _origDuplicateModel = duplicateModel;
+        duplicateModel = function(id) { saveHistoryState(); _origDuplicateModel(id); };
+
+        // Hook 4: Clear Map Button
+        const clearBtnUndo = document.getElementById('clearMap');
+        if(clearBtnUndo) {
+            const _origClear = clearBtnUndo.onclick;
+            clearBtnUndo.onclick = (e) => { saveHistoryState(); _origClear(e); };
+        }
+
+        // Hook 5: Gizmo Dragging
+        if (typeof transformControl !== 'undefined') {
+            transformControl.addEventListener('dragging-changed', function (event) {
+                if (event.value) saveHistoryState(); // Event.value is true when drag starts
+            });
+        }
+
+        // Hook 6: Inspector Transform Typing
+        ['posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'sclX', 'sclY', 'sclZ'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('focus', saveHistoryState);
+        });
+
+        // Hook 7: Enemy Stats Typing
+        ['enemyHealth', 'enemySpeed', 'enemyDamage'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('focus', saveHistoryState);
+        });
+        // --- END UNDO SYSTEM INJECTION ---
+
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js">
+        // --- UNDO SYSTEM INJECTION ---
+        let undoStack = [];
+        const MAX_UNDO = 50;
+
+        // Creates a deep copy of the current environment and entities
+        function cloneGameState() {
+            return {
+                walls: Array.from(mapData.walls.entries()),
+                floors: Array.from(mapData.floors.entries()),
+                triggers: JSON.parse(JSON.stringify(mapData.triggers)),
+                playerSpawn: JSON.parse(JSON.stringify(mapData.playerSpawn)),
+                models: JSON.parse(JSON.stringify(importedModelsData))
+            };
+        }
+
+        // Saves state before an action modifies the scene
+        function saveHistoryState() {
+            if (STATE.mode !== 'edit') return;
+            undoStack.push(cloneGameState());
+            if (undoStack.length > MAX_UNDO) undoStack.shift();
+        }
+
+        // Restores the previous state
+        function performUndo() {
+            if (undoStack.length === 0 || STATE.mode !== 'edit') return;
+            const prevState = undoStack.pop();
+
+            // Restore MapData structures
+            mapData.walls = new Map(prevState.walls);
+            mapData.floors = new Map(prevState.floors);
+            mapData.triggers = prevState.triggers;
+            mapData.playerSpawn = prevState.playerSpawn;
+
+            // Restore Models data
+            importedModelsData = prevState.models;
+
+            // Refresh environment visuals
+            updateSceneVisuals();
+            updateSpawnVisual();
+
+            // Re-spawn all imported models/enemies safely
+            importedModelsGroup.clear();
+            importedModelsData.forEach(modelData => {
+                spawnModelVisuals(modelData, false); // false prevents auto-selecting during loop
+            });
+            
+            // Refresh UI
+            updateModelListUI();
+            selectModel(null); // Detach gizmo to prevent ghost manipulations
+        }
+
+        // Hook 1: Listen for Ctrl+Z
+        window.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.code === 'KeyZ') {
+                e.preventDefault();
+                performUndo();
+            }
+        });
+
+        // Hook 2: Mouse down on canvas (Brush/Placement/Erase strokes)
+        window.addEventListener('mousedown', (e) => {
+            if (e.target.closest('#editor') || e.target.closest('#modelManager')) return;
+            if (STATE.mode === 'edit' && (e.button === 0 || e.button === 2)) {
+                saveHistoryState();
+            }
+        }, true); // Capture phase
+
+        // Hook 3: Global function overrides (Safe monkey-patching)
+        const _origDeleteModel = deleteModel;
+        deleteModel = function(id) { saveHistoryState(); _origDeleteModel(id); };
+
+        const _origDuplicateModel = duplicateModel;
+        duplicateModel = function(id) { saveHistoryState(); _origDuplicateModel(id); };
+
+        // Hook 4: Clear Map Button
+        const clearBtnUndo = document.getElementById('clearMap');
+        if(clearBtnUndo) {
+            const _origClear = clearBtnUndo.onclick;
+            clearBtnUndo.onclick = (e) => { saveHistoryState(); _origClear(e); };
+        }
+
+        // Hook 5: Gizmo Dragging
+        if (typeof transformControl !== 'undefined') {
+            transformControl.addEventListener('dragging-changed', function (event) {
+                if (event.value) saveHistoryState(); // Event.value is true when drag starts
+            });
+        }
+
+        // Hook 6: Inspector Transform Typing
+        ['posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'sclX', 'sclY', 'sclZ'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('focus', saveHistoryState);
+        });
+
+        // Hook 7: Enemy Stats Typing
+        ['enemyHealth', 'enemySpeed', 'enemyDamage'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('focus', saveHistoryState);
+        });
+        // --- END UNDO SYSTEM INJECTION ---
+
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js">
+        // --- UNDO SYSTEM INJECTION ---
+        let undoStack = [];
+        const MAX_UNDO = 50;
+
+        // Creates a deep copy of the current environment and entities
+        function cloneGameState() {
+            return {
+                walls: Array.from(mapData.walls.entries()),
+                floors: Array.from(mapData.floors.entries()),
+                triggers: JSON.parse(JSON.stringify(mapData.triggers)),
+                playerSpawn: JSON.parse(JSON.stringify(mapData.playerSpawn)),
+                models: JSON.parse(JSON.stringify(importedModelsData))
+            };
+        }
+
+        // Saves state before an action modifies the scene
+        function saveHistoryState() {
+            if (STATE.mode !== 'edit') return;
+            undoStack.push(cloneGameState());
+            if (undoStack.length > MAX_UNDO) undoStack.shift();
+        }
+
+        // Restores the previous state
+        function performUndo() {
+            if (undoStack.length === 0 || STATE.mode !== 'edit') return;
+            const prevState = undoStack.pop();
+
+            // Restore MapData structures
+            mapData.walls = new Map(prevState.walls);
+            mapData.floors = new Map(prevState.floors);
+            mapData.triggers = prevState.triggers;
+            mapData.playerSpawn = prevState.playerSpawn;
+
+            // Restore Models data
+            importedModelsData = prevState.models;
+
+            // Refresh environment visuals
+            updateSceneVisuals();
+            updateSpawnVisual();
+
+            // Re-spawn all imported models/enemies safely
+            importedModelsGroup.clear();
+            importedModelsData.forEach(modelData => {
+                spawnModelVisuals(modelData, false); // false prevents auto-selecting during loop
+            });
+            
+            // Refresh UI
+            updateModelListUI();
+            selectModel(null); // Detach gizmo to prevent ghost manipulations
+        }
+
+        // Hook 1: Listen for Ctrl+Z
+        window.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.code === 'KeyZ') {
+                e.preventDefault();
+                performUndo();
+            }
+        });
+
+        // Hook 2: Mouse down on canvas (Brush/Placement/Erase strokes)
+        window.addEventListener('mousedown', (e) => {
+            if (e.target.closest('#editor') || e.target.closest('#modelManager')) return;
+            if (STATE.mode === 'edit' && (e.button === 0 || e.button === 2)) {
+                saveHistoryState();
+            }
+        }, true); // Capture phase
+
+        // Hook 3: Global function overrides (Safe monkey-patching)
+        const _origDeleteModel = deleteModel;
+        deleteModel = function(id) { saveHistoryState(); _origDeleteModel(id); };
+
+        const _origDuplicateModel = duplicateModel;
+        duplicateModel = function(id) { saveHistoryState(); _origDuplicateModel(id); };
+
+        // Hook 4: Clear Map Button
+        const clearBtnUndo = document.getElementById('clearMap');
+        if(clearBtnUndo) {
+            const _origClear = clearBtnUndo.onclick;
+            clearBtnUndo.onclick = (e) => { saveHistoryState(); _origClear(e); };
+        }
+
+        // Hook 5: Gizmo Dragging
+        if (typeof transformControl !== 'undefined') {
+            transformControl.addEventListener('dragging-changed', function (event) {
+                if (event.value) saveHistoryState(); // Event.value is true when drag starts
+            });
+        }
+
+        // Hook 6: Inspector Transform Typing
+        ['posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'sclX', 'sclY', 'sclZ'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('focus', saveHistoryState);
+        });
+
+        // Hook 7: Enemy Stats Typing
+        ['enemyHealth', 'enemySpeed', 'enemyDamage'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('focus', saveHistoryState);
+        });
+        // --- END UNDO SYSTEM INJECTION ---
+
+    </script>
+
+    <script>
+        // Game State
+        const STATE = {
+            mode: 'edit', // 'edit' or 'play'
+            currentTool: 'none', 
+            selectedWallTexture: 0,
+            selectedFloorTexture: 0,
+            mapWidth: 20,
+            mapLength: 20,
+            playerHealth: 100,
+            playerAmmo: 999,
+            selectedModelId: null,
+            isGizmoDragging: false,
+            enemyAppearance: 'default', // 'default' or 'custom'
+            customEnemyModel: null, // base64 string
+            customShootSoundData: null, // base64 string for saving
+            isFrozen: false, // For Trigger Zone
+            uploadTargetType: null
+        };
+
+        // ----------------------------------------------------
+        // MODEL
+        // ----------------------------------------------------
+        STATE.activeModelSourceId = null;
+
+        // Update the dropdown list
+        function updateModelSourceDropdown() {
+            const select = document.getElementById('modelSelector');
+            select.innerHTML = '';
+            
+            const keys = Object.keys(modelSources);
+            if (keys.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = "";
+                opt.textContent = "-- No Models Loaded --";
+                select.appendChild(opt);
+                return;
+            }
+
+            keys.forEach(key => {
+                const source = modelSources[key];
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.textContent = source.name;
+                if (key === STATE.activeModelSourceId) opt.selected = true;
+                select.appendChild(opt);
+            });
+            
+            // Listener for dropdown change
+            select.onchange = (e) => {
+                STATE.activeModelSourceId = e.target.value;
+            };
+        }
+
+        // ----------------------------------------------------
+        // AUDIO SYSTEM (Web Audio API)
+        // ----------------------------------------------------
+        let audioCtx = null;
+        let shootSoundBuffer = null;
+
+        // Initialize Audio Context (must be triggered by user interaction)
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // Decode audio data from ArrayBuffer
+        function decodeAudio(arrayBuffer) {
+            initAudio();
+            audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+                shootSoundBuffer = buffer;
+            }, (err) => console.error("Error decoding audio", err));
+        }
+
+        // Convert DataURL (Base64) to ArrayBuffer for Web Audio
+        function loadSoundFromBase64(base64) {
+            fetch(base64)
+                .then(res => res.arrayBuffer())
+                .then(arrayBuffer => decodeAudio(arrayBuffer));
+        }
+
+        // Play the shoot sound (Procedural or Custom)
+        function playShootSound() {
+            initAudio();
+
+            if (shootSoundBuffer) {
+                // Play Custom Sample
+                const source = audioCtx.createBufferSource();
+                source.buffer = shootSoundBuffer;
+                source.connect(audioCtx.destination);
+                source.start(0);
+            } else {
+                // Play Default Procedural "Laser/Gun" Sound
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                // Square wave gives a retro 8-bit vibe
+                osc.type = 'square'; 
+                
+                // Pitch drop (pew pew effect)
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.15);
+
+                // Volume envelope (quick fade out)
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.15);
+            }
+        }
+
+        // Handle Audio File Input
+        document.getElementById('shootSoundInput').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Display file name
+            const nameLabel = document.getElementById('shootSoundName');
+            nameLabel.textContent = "Selected: " + file.name;
+            nameLabel.style.display = "block";
+            
+            // Save name to STATE so we can save it to JSON later
+            STATE.customShootSoundName = file.name;
+
+            initAudio(); // Ensure context exists
+
+            // 1. Read as ArrayBuffer for playing immediately
+            const readerBuffer = new FileReader();
+            readerBuffer.onload = (ev) => {
+                decodeAudio(ev.target.result);
+            };
+            readerBuffer.readAsArrayBuffer(file);
+
+            // 2. Read as DataURL for saving to JSON
+            const readerData = new FileReader();
+            readerData.onload = (ev) => {
+                STATE.customShootSoundData = ev.target.result;
+                // Removed alert to make it smoother, visual feedback is enough
+            };
+            readerData.readAsDataURL(file);
+        };
+
+        // Test Sound Button
+        document.getElementById('testSound').onclick = () => {
+            initAudio();
+            playShootSound();
+        };
+
+        // ----------------------------------------------------
+        // END AUDIO SYSTEM
+        // ----------------------------------------------------
+
+        // Three.js Setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87ceeb);
+        scene.fog = new THREE.Fog(0x87ceeb, 0, 100);
+
+        // Texture Loader
+        const textureLoader = new THREE.TextureLoader();
+        // GLTF Loader
+        const gltfLoader = new THREE.GLTFLoader();
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        
+        // GRAPHICS UPGRADE
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputEncoding = THREE.sRGBEncoding; 
+        renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+        renderer.toneMappingExposure = 1.0;
+        
+        document.body.appendChild(renderer.domElement);
+
+        // GIZMO SETUP
+        const transformControl = new THREE.TransformControls(camera, renderer.domElement);
+        transformControl.addEventListener('dragging-changed', function (event) {
+            STATE.isGizmoDragging = event.value;
+        });
+        transformControl.addEventListener('change', function () {
+            // Update inputs while dragging gizmo
+            if (STATE.selectedModelId) {
+                const obj = importedModelsGroup.children.find(o => o.userData.id === STATE.selectedModelId);
+                if (obj) {
+                    updateInspectorInputs(obj);
+                    // Update data model
+                    const data = importedModelsData.find(d => d.id === STATE.selectedModelId);
+                    if(data) {
+                        data.position = { x: obj.position.x, y: obj.position.y, z: obj.position.z };
+                        data.rotation = { x: obj.rotation.x, y: obj.rotation.y, z: obj.rotation.z };
+                        data.scale = { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z };
+                    }
+                }
+            }
+        });
+        scene.add(transformControl);
+
+        // LIGHTING
+        const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x605040, 0.8);
+        scene.add(hemisphereLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        
+        directionalLight.position.set(50, 100, 50);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.camera.left = -50;
+        directionalLight.shadow.camera.right = 50;
+        directionalLight.shadow.camera.top = 50;
+        directionalLight.shadow.camera.bottom = -50;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        scene.add(directionalLight);
+
+        // Visible sun
+        const sunGeometry = new THREE.SphereGeometry(10, 32, 32); 
+        const sunMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xffffee, 
+            fog: false     
+        });
+        const sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
+        sunMesh.position.copy(directionalLight.position); 
+        scene.add(sunMesh);
+
+        // Clouds (unchanged)
+        function createCloudTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+
+            const gradient = ctx.createRadialGradient(
+                canvas.width / 2, canvas.height / 2, 0,
+                canvas.width / 2, canvas.height / 2, canvas.width / 2
+            );
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)'); 
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');   
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const cloudGroup = new THREE.Group();
+        const cloudTexture = createCloudTexture();
+
+        for (let i = 0; i < 25; i++) {
+            const cloudMaterial = new THREE.SpriteMaterial({
+                map: cloudTexture,
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.7, 
+                blending: THREE.NormalBlending,
+                fog: false 
+            });
+
+            const cloud = new THREE.Sprite(cloudMaterial);
+            cloud.position.x = (Math.random() - 0.5) * 300; 
+            cloud.position.z = (Math.random() - 0.5) * 300; 
+            cloud.position.y = Math.random() * 20 + 75; 
+            const scale = Math.random() * 25 + 20; 
+            cloud.scale.set(scale, scale, 1);
+            cloudGroup.add(cloud);
+        }
+        scene.add(cloudGroup);
+
+
+        // ----------------------------------------------------
+        // TEXTURE MANAGEMENT
+        // ----------------------------------------------------
+
+        // Initial default textures (kept constant)
+        const INITIAL_WALL_TEXTURES = [
+            { name: 'Brick', color: 0x8B4513 },
+            { name: 'Stone', color: 0x808080 },
+            { name: 'Metal', color: 0x696969 },
+            { name: 'Wood', color: 0xDEB887 },
+            { name: 'Concrete', color: 0xA9A9A9 },
+            { name: 'Marble', color: 0xF5F5DC }
+        ];
+
+        const INITIAL_FLOOR_TEXTURES = [
+            { name: 'Grass', color: 0x228B22 },
+            { name: 'Stone Floor', color: 0x708090 },
+            { name: 'Wood Floor', color: 0x8B4513 },
+            { name: 'Sand', color: 0xF4A460 },
+            { name: 'Tile', color: 0xD3D3D3 },
+            { name: 'Carpet', color: 0x800000 }
+        ];
+        
+        // Modifiable texture arrays
+        let wallTextures = [...INITIAL_WALL_TEXTURES];
+        let floorTextures = [...INITIAL_FLOOR_TEXTURES];
+
+        // Reset textures to initial state (used for clearing map only)
+        function resetTextures() {
+            wallTextures = [...INITIAL_WALL_TEXTURES];
+            floorTextures = [...INITIAL_FLOOR_TEXTURES];
+            STATE.selectedWallTexture = 0;
+            STATE.selectedFloorTexture = 0;
+            initTextureSelectors();
+        }
+
+        // Initialize texture selectors UI
+        function updateTextureGrid(type) {
+            const gridId = type === 'wall' ? 'wallTextures' : 'floorTextures';
+            const textureArray = type === 'wall' ? wallTextures : floorTextures;
+            const selectedIndex = type === 'wall' ? STATE.selectedWallTexture : STATE.selectedFloorTexture;
+            
+            const grid = document.getElementById(gridId);
+            grid.innerHTML = ''; // Clear existing
+
+            // 1. Render existing textures
+            textureArray.forEach((tex, i) => {
+                const div = document.createElement('div');
+                div.className = 'texture-option' + (i === selectedIndex ? ' selected' : '');
+                
+                if (tex.url) {
+                    div.style.backgroundImage = `url('${tex.url}')`;
+                    div.style.backgroundRepeat = 'repeat';
+                    div.style.backgroundSize = 'contain';
+                    div.style.backgroundColor = '#000';
+                } else {
+                    div.style.background = `#${tex.color.toString(16).padStart(6, '0')}`;
+                }
+                
+                div.title = tex.name;
+                div.onclick = () => {
+                    document.querySelectorAll(`#${gridId} .texture-option`).forEach(el => el.classList.remove('selected'));
+                    div.classList.add('selected');
+                    if (type === 'wall') STATE.selectedWallTexture = i;
+                    else STATE.selectedFloorTexture = i;
+                };
+                grid.appendChild(div);
+            });
+
+            // 2. Add the square "+" Button at the end
+            const addBtn = document.createElement('div');
+            addBtn.className = 'texture-option texture-add-btn';
+            addBtn.innerHTML = '<span class="material-symbols-rounded">add</span>';
+            addBtn.title = "Upload Custom Texture";
+            addBtn.onclick = () => {
+                STATE.uploadTargetType = type; // Remember if we clicked Wall or Floor
+                document.getElementById('hiddenTextureInput').click(); // Trigger the hidden input
+            };
+            grid.appendChild(addBtn);
+        }
+
+        function initTextureSelectors() {
+            updateTextureGrid('wall');
+            updateTextureGrid('floor');
+        }
+
+        // ----------------------------------------------------
+        // FLOOR SOUND SYSTEM
+        // ----------------------------------------------------
+
+        // 1. Helper to decode sound for a texture immediately
+        function decodeTextureSound(textureIndex) {
+            const tex = floorTextures[textureIndex];
+            if (tex && tex.soundData && audioCtx) {
+                fetch(tex.soundData)
+                    .then(res => res.arrayBuffer())
+                    .then(buffer => audioCtx.decodeAudioData(buffer))
+                    .then(decoded => {
+                        tex.soundBuffer = decoded;
+                    });
+            }
+        }
+
+        // 2. Play Footstep Logic
+        function playFootstepSound() {
+            if (!audioCtx) return;
+            
+            // Find which texture is under the player
+            const x = Math.round(player.position.x / 2) * 2;
+            const z = Math.round(player.position.z / 2) * 2;
+            const key = getKey(x, 0, z);
+            const floorData = mapData.floors.get(key);
+
+            let bufferToPlay = null;
+
+            // If standing on a valid floor with a custom sound
+            if (floorData && floorTextures[floorData.texture] && floorTextures[floorData.texture].soundBuffer) {
+                bufferToPlay = floorTextures[floorData.texture].soundBuffer;
+            }
+
+            // Create Source
+            const source = audioCtx.createBufferSource();
+            const gain = audioCtx.createGain();
+            
+            if (bufferToPlay) {
+                source.buffer = bufferToPlay;
+                gain.gain.value = 0.6; // Volume for custom sounds
+            } else {
+                // PROCEDURAL DEFAULT SOUND (Tap noise)
+                const osc = audioCtx.createOscillator();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                
+                // Connect oscillator instead of buffer
+                osc.connect(gain);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+                
+                gain.gain.value = 0.2; // Lower volume for default
+            }
+
+            if (bufferToPlay) {
+                source.connect(gain);
+                source.start(0);
+            }
+            
+            gain.connect(audioCtx.destination);
+        }
+
+        // 3. UI: Handle File Upload for Floor Sound
+        document.getElementById('floorSoundInput').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            initAudio(); // Ensure AudioContext is ready
+
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const base64 = ev.target.result;
+                
+                // Save to currently selected texture object
+                const tex = floorTextures[STATE.selectedFloorTexture];
+                tex.soundData = base64; // For JSON saving
+                tex.soundName = file.name; // For UI display
+
+                // Decode immediately for playback
+                decodeTextureSound(STATE.selectedFloorTexture);
+                
+                // Update UI text
+                document.getElementById('floorSoundName').textContent = "Current: " + file.name;
+                
+                alert(`Sound attached to '${tex.name || 'Texture'}'!`);
+            };
+            reader.readAsDataURL(file);
+            e.target.value = '';
+        };
+
+        // 4. UI: Reset Sound
+        document.getElementById('resetFloorSound').onclick = () => {
+            const tex = floorTextures[STATE.selectedFloorTexture];
+            if(tex) {
+                delete tex.soundData;
+                delete tex.soundName;
+                delete tex.soundBuffer;
+                document.getElementById('floorSoundName').textContent = "Current: Default";
+            }
+        };
+
+        // 5. Hook into Texture Selection to update UI Label
+        // We need to modify the existing click handler in updateTextureGrid slightly.
+        // Since that function is complex to paste, just run this listener on the grid container:
+        document.getElementById('floorTextures').addEventListener('click', () => {
+             // Slight delay to let the state update
+             setTimeout(() => {
+                const tex = floorTextures[STATE.selectedFloorTexture];
+                const label = document.getElementById('floorSoundName');
+                if (tex && tex.soundName) {
+                    label.textContent = "Current: " + tex.soundName;
+                } else {
+                    label.textContent = "Current: Default";
+                }
+             }, 50);
+        });
+
+        // Add Custom Texture Functionality (FILE PICKER)
+        // Handle Hidden Texture Input (Triggered by the square buttons)
+        document.getElementById('hiddenTextureInput').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const dataUrl = event.target.result;
+                const type = STATE.uploadTargetType; // Get type from state
+                
+                const newTexture = {
+                    name: file.name,
+                    color: 0xffffff,
+                    url: dataUrl 
+                };
+
+                // Add to the correct array based on which button was clicked
+                if (type === 'wall') {
+                    wallTextures.push(newTexture);
+                    STATE.selectedWallTexture = wallTextures.length - 1;
+                    updateTextureGrid('wall');
+                } else if (type === 'floor') {
+                    floorTextures.push(newTexture);
+                    STATE.selectedFloorTexture = floorTextures.length - 1;
+                    updateTextureGrid('floor');
+                }
+
+                // Force scene update
+                updateSceneVisuals();
+                
+                // Reset state
+                STATE.uploadTargetType = null;
+            };
+            reader.readAsDataURL(file); 
+            e.target.value = '';
+        };
+
+        // ----------------------------------------------------
+        // CUSTOM ENEMY MODEL HANDLING
+        // ----------------------------------------------------
+        
+        // Handle Enemy Type Radio Buttons
+        document.querySelectorAll('input[name="enemyType"]').forEach(radio => {
+            radio.onchange = (e) => {
+                STATE.enemyAppearance = e.target.value;
+                const fileInput = document.getElementById('enemyModelFile');
+                if (STATE.enemyAppearance === 'custom') {
+                    fileInput.style.opacity = '1';
+                    fileInput.style.pointerEvents = 'all';
+                } else {
+                    fileInput.style.opacity = '0.5';
+                    fileInput.style.pointerEvents = 'none';
+                }
+            };
+        });
+
+        // Handle Enemy Model Upload
+        document.getElementById('enemyModelFile').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                STATE.customEnemyModel = event.target.result; // Store base64
+                alert('Custom enemy model loaded! Select "Enemy" tool to place.');
+            };
+            reader.readAsDataURL(file);
+        };
+
+        // ----------------------------------------------------
+        // MODEL MANAGEMENT (OBJECT POOLING SYSTEM)
+        // ----------------------------------------------------
+        
+        // Data Structures
+        // modelSources: Stores the heavy Base64 data. Key = SourceID
+        let modelSources = {}; 
+        
+        // importedModelsData: Stores Instances. { id, sourceId, position, rotation, scale }
+        // Does NOT store the 'url' directly anymore.
+        let importedModelsData = []; 
+        
+        const importedModelsGroup = new THREE.Group();
+        scene.add(importedModelsGroup);
+
+        // Update the Hierarchy List UI
+        function updateModelListUI() {
+            const list = document.getElementById('modelList');
+            list.innerHTML = '';
+
+            importedModelsData.forEach((modelData) => {
+                const item = document.createElement('div');
+                item.className = 'model-item';
+                if (STATE.selectedModelId === modelData.id) item.classList.add('selected');
+                
+                // Name Span
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = modelData.name;
+                item.onclick = () => selectModel(modelData.id);
+
+                // Container for buttons
+                const btnContainer = document.createElement('div');
+                btnContainer.className = 'item-actions';
+
+                // Duplicate Button
+                const duplicateBtn = document.createElement('button');
+                duplicateBtn.className = 'duplicate-model-btn';
+                // CHANGED: Use Material Symbol 'content_copy'
+                duplicateBtn.innerHTML = '<span class="material-symbols-rounded">content_copy</span>'; 
+                duplicateBtn.title = 'Duplicate Model';
+                duplicateBtn.onclick = (e) => {
+                    e.stopPropagation(); 
+                    duplicateModel(modelData.id);
+                };
+
+                // Delete Button
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-model-btn';
+                // CHANGED: Use Material Symbol 'delete'
+                deleteBtn.innerHTML = '<span class="material-symbols-rounded">delete</span>'; 
+                deleteBtn.title = 'Delete Model';
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation(); 
+                    deleteModel(modelData.id);
+                };
+
+                btnContainer.appendChild(duplicateBtn);
+                btnContainer.appendChild(deleteBtn);
+                item.appendChild(nameSpan);
+                item.appendChild(btnContainer);
+                list.appendChild(item);
+            });
+        }
+        
+        // Function to delete a specific model
+        function deleteModel(id) {
+            if(!confirm("Are you sure you want to delete this object?")) return;
+
+            // 1. Remove from Scene Group
+            const obj = importedModelsGroup.children.find(o => o.userData.id === id);
+            if (obj) {
+                // If the object being deleted is currently selected, deselect it
+                if (STATE.selectedModelId === id) {
+                    transformControl.detach();
+                    selectModel(null);
+                }
+                importedModelsGroup.remove(obj);
+            }
+
+            // 2. Remove from Data Array
+            importedModelsData = importedModelsData.filter(m => m.id !== id);
+
+            // 3. Update UI
+            updateModelListUI();
+        }
+
+        // Function to duplicate a specific model - OPTIMIZED FOR POOLING
+        function duplicateModel(id) {
+            const sourceInstance = importedModelsData.find(m => m.id === id);
+            if (!sourceInstance) return;
+
+            // Create new instance data referencing the SAME sourceId
+            const newId = Date.now() + Math.random();
+            const newInstanceData = {
+                id: newId,
+                type: sourceInstance.type,
+                name: sourceInstance.name + " (Copy)",
+                sourceId: sourceInstance.sourceId, // Reuse the source!
+                position: { 
+                    x: sourceInstance.position.x + 2, 
+                    y: sourceInstance.position.y,
+                    z: sourceInstance.position.z + 2
+                },
+                rotation: { ...sourceInstance.rotation },
+                scale: { ...sourceInstance.scale },
+
+                // --- COPY ENEMY STATS ---
+                maxHealth: sourceInstance.maxHealth,
+                speed: sourceInstance.speed,
+                damage: sourceInstance.damage,
+
+                // --- COPY VISUAL MODEL DATA ---
+                visualType: sourceInstance.visualType,
+                customModelData: sourceInstance.customModelData,
+
+                // --- COPY AUDIO DATA ---
+                customSoundData: sourceInstance.customSoundData,
+                customSoundName: sourceInstance.customSoundName,
+                customDeathSoundData: sourceInstance.customDeathSoundData,
+                customDeathSoundName: sourceInstance.customDeathSoundName
+            };
+
+            // Add to data array
+            importedModelsData.push(newInstanceData);
+
+            // Spawn Visuals
+            spawnModelVisuals(newInstanceData, true);
+        }
+
+        function setGizmoMode(mode) {
+            transformControl.setMode(mode);
+            // Update UI buttons
+            document.querySelectorAll('.gizmo-btn').forEach(btn => btn.classList.remove('active'));
+            const idx = mode === 'translate' ? 0 : mode === 'rotate' ? 1 : 2;
+            document.querySelectorAll('.gizmo-btn')[idx].classList.add('active');
+        }
+        window.setGizmoMode = setGizmoMode;
+
+        // Select a model and show inspector
+        function selectModel(id) {
+            STATE.selectedModelId = id;
+            updateModelListUI();
+            
+            const modelData = importedModelsData.find(m => m.id === id);
+            const content = document.getElementById('inspectorContent');
+            const placeholder = document.getElementById('inspectorPlaceholder');
+            const enemyPropsPanel = document.getElementById('enemyProperties'); // New Reference
+
+            const obj = importedModelsGroup.children.find(o => o.userData.id === id);
+
+            if (modelData && obj) {
+                content.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+                const display = document.getElementById('modelNameDisplay');
+                const input = document.getElementById('modelNameInput');
+                const btn = document.getElementById('editNameBtn');
+
+                // Set values
+                display.textContent = modelData.name;
+                input.value = modelData.name;
+
+                // Reset UI to "View Mode"
+                display.classList.remove('hidden');
+                btn.classList.remove('hidden');
+                input.classList.add('hidden');
+                
+                // Attach Gizmo
+                transformControl.attach(obj);
+                
+                updateInspectorInputs(obj);
+
+                // Handle Enemy Properties Visibility
+                if (modelData.type === 'enemy') {
+                    enemyPropsPanel.classList.remove('hidden');
+                    // Load values from data, or default if not set
+                    document.getElementById('enemyHealth').value = modelData.maxHealth || 5;
+                    document.getElementById('enemySpeed').value = modelData.speed || 2;
+                    document.getElementById('enemyDamage').value = modelData.damage || 10;
+                    
+                    const soundNameLabel = document.getElementById('enemySoundName');
+                    if (modelData.customSoundName) {
+                        soundNameLabel.textContent = "Current: " + modelData.customSoundName;
+                        soundNameLabel.style.display = "block";
+                    } else {
+                        soundNameLabel.style.display = "none";
+                    }
+
+                    const deathSoundNameLabel = document.getElementById('enemyDeathSoundName');
+                    if (modelData.customDeathSoundName) {
+                        deathSoundNameLabel.textContent = "Current: " + modelData.customDeathSoundName;
+                        deathSoundNameLabel.style.display = "block";
+                    } else {
+                        deathSoundNameLabel.style.display = "none";
+                    }
+
+                } else {
+                    enemyPropsPanel.classList.add('hidden');
+                }
+
+            } else {
+                content.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+                // Detach Gizmo
+                transformControl.detach();
+            }
+        }
+
+        function updateInspectorInputs(obj) {
+            // Position
+            document.getElementById('posX').value = obj.position.x.toFixed(2);
+            document.getElementById('posY').value = obj.position.y.toFixed(2);
+            document.getElementById('posZ').value = obj.position.z.toFixed(2);
+            // Rotation (convert to degrees)
+            document.getElementById('rotX').value = THREE.MathUtils.radToDeg(obj.rotation.x).toFixed(1);
+            document.getElementById('rotY').value = THREE.MathUtils.radToDeg(obj.rotation.y).toFixed(1);
+            document.getElementById('rotZ').value = THREE.MathUtils.radToDeg(obj.rotation.z).toFixed(1);
+            // Scale
+            document.getElementById('sclX').value = obj.scale.x.toFixed(2);
+            document.getElementById('sclY').value = obj.scale.y.toFixed(2);
+            document.getElementById('sclZ').value = obj.scale.z.toFixed(2);
+        }
+
+        // Apply Inspector changes to Object (Manual Input)
+        function applyTransformChange() {
+            if (!STATE.selectedModelId) return;
+            const obj = importedModelsGroup.children.find(o => o.userData.id === STATE.selectedModelId);
+            const data = importedModelsData.find(d => d.id === STATE.selectedModelId);
+            
+            if (obj && data) {
+                // Pos
+                obj.position.x = parseFloat(document.getElementById('posX').value) || 0;
+                obj.position.y = parseFloat(document.getElementById('posY').value) || 0;
+                obj.position.z = parseFloat(document.getElementById('posZ').value) || 0;
+                
+                // Rot (Degrees to Rads)
+                obj.rotation.x = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotX').value) || 0);
+                obj.rotation.y = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotY').value) || 0);
+                obj.rotation.z = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotZ').value) || 0);
+
+                // Scale
+                obj.scale.x = parseFloat(document.getElementById('sclX').value) || 1;
+                obj.scale.y = parseFloat(document.getElementById('sclY').value) || 1;
+                obj.scale.z = parseFloat(document.getElementById('sclZ').value) || 1;
+
+                // Sync data
+                data.position = { x: obj.position.x, y: obj.position.y, z: obj.position.z };
+                data.rotation = { x: obj.rotation.x, y: obj.rotation.y, z: obj.rotation.z };
+                data.scale = { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z };
+            }
+        }
+
+        // Listeners for inputs
+        ['posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'sclX', 'sclY', 'sclZ'].forEach(id => {
+            document.getElementById(id).addEventListener('input', applyTransformChange);
+        });
+
+        // RENAME OBJECT LOGIC
+        const nameDisplay = document.getElementById('modelNameDisplay');
+        const nameInput = document.getElementById('modelNameInput');
+        const editBtn = document.getElementById('editNameBtn');
+
+        // 1. Click Icon -> Switch to Edit Mode
+        editBtn.onclick = () => {
+            nameDisplay.classList.add('hidden'); // Hide text
+            editBtn.classList.add('hidden');     // Hide button
+            nameInput.classList.remove('hidden'); // Show input
+            nameInput.focus();                   // Auto-focus
+        };
+
+        // 2. Save Function (Runs on Enter or Click Away)
+        const saveNameChange = () => {
+            if (!STATE.selectedModelId) return;
+            
+            const newName = nameInput.value.trim();
+            const data = importedModelsData.find(d => d.id === STATE.selectedModelId);
+
+            if (data && newName) {
+                data.name = newName;            // Update Data
+                nameDisplay.textContent = newName; // Update Header
+                updateModelListUI();            // Update Sidebar List
+            } else {
+                nameInput.value = nameDisplay.textContent; // Revert if empty
+            }
+
+            // Switch back to View Mode
+            nameInput.classList.add('hidden');
+            nameDisplay.classList.remove('hidden');
+            editBtn.classList.remove('hidden');
+        };
+
+        // 3. Attach Listeners
+        nameInput.onblur = saveNameChange; // Save when clicking away
+        nameInput.onkeydown = (e) => { 
+            if(e.key === 'Enter') saveNameChange(); // Save on Enter
+        };
+
+        // Listeners for Enemy Properties
+        function updateEnemyData(field, value) {
+            if (!STATE.selectedModelId) return;
+            const data = importedModelsData.find(d => d.id === STATE.selectedModelId);
+            const obj = importedModelsGroup.children.find(o => o.userData.id === STATE.selectedModelId);
+            
+            if (data && data.type === 'enemy') {
+                const val = parseFloat(value);
+                data[field] = val; // Update Save Data
+                if(obj) {
+                    obj.userData[field] = val; // Update Live Object
+                    if(field === 'maxHealth') obj.userData.health = val; // Sync current health
+                }
+            }
+        }
+
+        document.getElementById('enemyHealth').addEventListener('input', (e) => updateEnemyData('maxHealth', e.target.value));
+        document.getElementById('enemySpeed').addEventListener('input', (e) => updateEnemyData('speed', e.target.value));
+        document.getElementById('enemyDamage').addEventListener('input', (e) => updateEnemyData('damage', e.target.value));
+
+        // ----------------------------------------------------
+        // ENEMY SOUND INSPECTOR LOGIC
+        // ----------------------------------------------------
+
+        // 1. Handle File Upload
+        document.getElementById('enemySoundInput').onchange = (e) => {
+            if (!STATE.selectedModelId) return;
+
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const base64 = event.target.result;
+                
+                const data = importedModelsData.find(d => d.id === STATE.selectedModelId);
+
+                if (data) {
+                    data.customSoundData = base64;
+                    data.customSoundName = file.name; // Save name to data
+                }
+
+                // Update UI Label
+                const soundNameLabel = document.getElementById('enemySoundName');
+                soundNameLabel.textContent = "Current: " + file.name;
+                soundNameLabel.style.display = "block";
+
+                const obj = importedModelsGroup.children.find(o => o.userData.id === STATE.selectedModelId);
+                if (obj) {
+                    obj.userData.customSoundData = base64;
+                    
+                    if (obj.userData.sound) {
+                        try { obj.userData.sound.source.stop(); } catch(e){}
+                        obj.userData.sound = null;
+                    }
+                    if(audioCtx) createEnemySound(obj);
+                }
+                alert("Custom enemy sound updated!");
+            };
+            reader.readAsDataURL(file);
+            e.target.value = '';
+        };
+
+        // 2. Handle Reset Button
+        document.getElementById('resetEnemySound').onclick = () => {
+            if (!STATE.selectedModelId) return;
+
+            const data = importedModelsData.find(d => d.id === STATE.selectedModelId);
+
+            if (data) {
+                delete data.customSoundData;
+                delete data.customSoundName; // Remove name from data
+            }
+            
+            // Hide UI Label
+            document.getElementById('enemySoundName').style.display = "none";
+
+            const obj = importedModelsGroup.children.find(o => o.userData.id === STATE.selectedModelId);
+            if (obj) {
+                delete obj.userData.customSoundData;
+
+                if (obj.userData.sound) {
+                    try { obj.userData.sound.source.stop(); } catch(e){}
+                    obj.userData.sound = null;
+                }
+                if(audioCtx) createEnemySound(obj);
+            }
+        };
+
+        // ----------------------------------------------------
+        // ENEMY DEATH SOUND HANDLER
+        // ----------------------------------------------------
+
+        // 1. Handle Death Sound Upload
+        document.getElementById('enemyDeathSoundInput').onchange = (e) => {
+            if (!STATE.selectedModelId) return;
+
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const base64 = event.target.result;
+                
+                // Update Data Model
+                const data = importedModelsData.find(d => d.id === STATE.selectedModelId);
+                if (data) {
+                    data.customDeathSoundData = base64;
+                    data.customDeathSoundName = file.name;
+                }
+
+                // Update UI Label immediately
+                const deathSoundNameLabel = document.getElementById('enemyDeathSoundName');
+                deathSoundNameLabel.textContent = "Current: " + file.name;
+                deathSoundNameLabel.style.display = "block";
+
+                // Update Live Object
+                const obj = importedModelsGroup.children.find(o => o.userData.id === STATE.selectedModelId);
+                if (obj) {
+                    obj.userData.customDeathSoundData = base64;
+                }
+            };
+            reader.readAsDataURL(file);
+            e.target.value = ''; 
+        };
+
+        // 2. Handle Reset Death Sound
+        document.getElementById('resetEnemyDeathSound').onclick = () => {
+            if (!STATE.selectedModelId) return;
+
+            const data = importedModelsData.find(d => d.id === STATE.selectedModelId);
+            if (data) {
+                delete data.customDeathSoundData;
+                delete data.customDeathSoundName;
+            }
+
+            // Hide UI Label
+            document.getElementById('enemyDeathSoundName').style.display = "none";
+
+            const obj = importedModelsGroup.children.find(o => o.userData.id === STATE.selectedModelId);
+            if (obj) delete obj.userData.customDeathSoundData;
+        };
+
+        // ----------------------------------------------------
+        // ENEMY AUDIO HELPER
+        // ----------------------------------------------------
+        function createEnemySound(enemyGroup) {
+            // Only create if audio context is active
+            if (!audioCtx) return;
+
+            // ONLY RUN IF CUSTOM SOUND DATA EXISTS
+            if (enemyGroup.userData.customSoundData) {
+                const gain = audioCtx.createGain();
+                gain.connect(audioCtx.destination);
+                gain.gain.value = 0; // Start silent
+
+                // Decode and play custom sample
+                const source = audioCtx.createBufferSource();
+                source.loop = true;
+                
+                // We need to decode the base64 data
+                fetch(enemyGroup.userData.customSoundData)
+                    .then(res => res.arrayBuffer())
+                    .then(arrayBuffer => audioCtx.decodeAudioData(arrayBuffer))
+                    .then(audioBuffer => {
+                        source.buffer = audioBuffer;
+                        source.connect(gain);
+                        source.start(0);
+                    })
+                    .catch(e => console.error("Error decoding enemy sound", e));
+
+                enemyGroup.userData.sound = {
+                    source: source, // reference to stop later
+                    gain: gain,
+                    type: 'custom'
+                };
+            } 
+            // ELSE: Do nothing (Default is silence)
+        }
+
+
+        // Spawn Visuals Function (Handles both GLB Models and Enemies)
+        function spawnModelVisuals(instanceData, autoSelect = false) {
+            // 1. HANDLE ENEMIES
+            if (instanceData.type === 'enemy') {
+                const group = new THREE.Group();
+                group.userData = {
+                    id: instanceData.id,
+                    type: 'enemy',
+                    isImportedModel: true,
+                    health: instanceData.maxHealth || 5,
+                    maxHealth: instanceData.maxHealth || 5,
+                    speed: instanceData.speed || 2,
+                    damage: instanceData.damage || 10,
+                    customSoundData: instanceData.customSoundData,
+                    customDeathSoundData: instanceData.customDeathSoundData
+                };
+
+                // Apply Transforms
+                group.position.set(instanceData.position.x, instanceData.position.y, instanceData.position.z);
+                group.rotation.set(instanceData.rotation.x, instanceData.rotation.y, instanceData.rotation.z);
+                group.scale.set(instanceData.scale.x, instanceData.scale.y, instanceData.scale.z);
+
+                // Ensure visualType is set in data if missing
+                if (!instanceData.visualType) {
+                    instanceData.visualType = instanceData.customModelData ? 'custom' : 'default';
+                }
+
+                // We ONLY call this. We DELETED the old manual loading code that was here.
+                updateEnemyVisuals(group, instanceData);
+
+                // Initialize audio for this enemy if context exists
+                if(audioCtx) createEnemySound(group);
+
+                importedModelsGroup.add(group);
+                if (autoSelect) selectModel(instanceData.id);
+                updateModelListUI();
+                return;
+            }
+
+            // 2. HANDLE STANDARD IMPORTED MODELS (GLB)
+            const source = modelSources[instanceData.sourceId];
+            if (!source) {
+                console.error("Model source not found for ID:", instanceData.sourceId);
+                return;
+            }
+
+            gltfLoader.load(source.url, (gltf) => {
+                const model = gltf.scene;
+                model.traverse((node) => {
+                    if (node.isMesh) {
+                        node.castShadow = true;
+                        node.receiveShadow = true;
+                        node.userData.isMeshCollider = true;
+                    }
+                });
+
+                model.userData.id = instanceData.id;
+                model.userData.isImportedModel = true; // Crucial for selection
+
+                model.position.set(instanceData.position.x, instanceData.position.y, instanceData.position.z);
+                model.rotation.set(instanceData.rotation.x, instanceData.rotation.y, instanceData.rotation.z);
+                model.scale.set(instanceData.scale.x, instanceData.scale.y, instanceData.scale.z);
+
+                importedModelsGroup.add(model);
+
+                if (autoSelect) selectModel(instanceData.id);
+                updateModelListUI();
+
+            }, undefined, (error) => {
+                console.error('An error occurred loading the model', error);
+            });
+        }
+
+        // Handle File Input for GLB (Adds to source, does NOT spawn immediately)
+        document.getElementById('modelInput').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const base64 = event.target.result;
+                
+                // 1. Create a Unique Source ID
+                const sourceId = 'src_' + Date.now();
+                
+                // 2. Store Heavy Data in Pool
+                modelSources[sourceId] = {
+                    name: file.name,
+                    url: base64
+                };
+
+                // 3. Set as active
+                STATE.activeModelSourceId = sourceId;
+                
+                // 4. Update UI
+                updateModelSourceDropdown();
+                alert(`Model '${file.name}' loaded! Click on the map to place it.`);
+            };
+            e.target.value = '';
+        };
+
+
+        // ----------------------------------------------------
+        // END MODEL MANAGEMENT
+        // ----------------------------------------------------
+
+
+        // Map Data
+        let mapData = {
+            walls: new Map(), // Key: "x,y,z" Value: {x,y,z,texture}
+            floors: new Map(), // Key: "x,0,z" Value: {x,z,texture}
+            enemies: [],
+            triggers: [], // Array of {x, y, z, text}
+            playerSpawn: { x: 10, y: 1.7, z: 10 }
+        };
+
+        // ----------------------------------------------------
+        // INSTANCED RENDERING SETUP + TRIGGER GROUP
+        // ----------------------------------------------------
+        const wallsGroup = new THREE.Group();
+        const floorsGroup = new THREE.Group();
+        const triggersGroup = new THREE.Group(); // New group for trigger visuals
+        
+        scene.add(wallsGroup);
+        scene.add(floorsGroup);
+        scene.add(triggersGroup);
+
+        const spawnMarkerGroup = new THREE.Group();
+        scene.add(spawnMarkerGroup);
+
+        // Create a visual marker for the player spawn (Green Cylinder)
+        const spawnGeo = new THREE.CylinderGeometry(0.3, 0.3, 1.7, 16);
+        const spawnMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.5 });
+        const spawnMesh = new THREE.Mesh(spawnGeo, spawnMat);
+        spawnMesh.position.y = 0.85; // Center vertically
+        spawnMarkerGroup.add(spawnMesh);
+
+        // Add a label
+        const spawnLabel = createTextSprite("PLAYER START");
+        spawnLabel.position.y = 2.2;
+        spawnMarkerGroup.add(spawnLabel);
+
+        // Function to update marker position
+        function updateSpawnVisual() {
+            spawnMarkerGroup.position.set(mapData.playerSpawn.x, 0, mapData.playerSpawn.z);
+        }
+        // Call immediately to set initial position
+        updateSpawnVisual();
+
+        // Reusable Geometries
+        const instancedBoxGeo = new THREE.BoxGeometry(2, 2, 2);
+        const instancedPlaneGeo = new THREE.PlaneGeometry(2, 2);
+        
+        // Trigger Visuals (Transparent Green Box)
+        const triggerGeometry = new THREE.BoxGeometry(2, 2, 2);
+        const triggerMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x00ff00, 
+            transparent: true, 
+            opacity: 0.3,
+            wireframe: false
+        });
+        const triggerWireframeMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+
+        // Material Cache to avoid recreating materials every frame
+        const wallMaterialCache = {};
+        const floorMaterialCache = {};
+        const MAX_INSTANCES = 5000; // Max blocks per texture type
+
+        function getMaterial(texData, cache) {
+            // Create a unique key for the texture
+            const key = texData.url || texData.color;
+            if (cache[key]) return cache[key];
+
+            let materialConfig = { roughness: 0.8 };
+            if (texData.url) {
+                const tex = textureLoader.load(texData.url);
+                tex.wrapS = THREE.RepeatWrapping;
+                tex.wrapT = THREE.RepeatWrapping;
+                tex.repeat.set(1, 1);
+                materialConfig.map = tex;
+                materialConfig.color = 0xffffff;
+            } else {
+                materialConfig.color = texData.color;
+            }
+            
+            // For floors, double side
+            if(cache === floorMaterialCache) materialConfig.side = THREE.DoubleSide;
+
+            const mat = new THREE.MeshStandardMaterial(materialConfig);
+            cache[key] = mat;
+            return mat;
+        }
+
+        // Core Function: Rebuilds visual scene from mapData using InstancedMesh
+        function updateSceneVisuals() {
+            // 1. Clear existing instanced meshes
+            wallsGroup.clear();
+            floorsGroup.clear();
+
+            // 2. Prepare buckets for walls
+            // Array where index = textureIndex, value = array of matrix data
+            const wallBuckets = []; 
+            mapData.walls.forEach(w => {
+                if(!wallBuckets[w.texture]) wallBuckets[w.texture] = [];
+                const dummy = new THREE.Object3D();
+                dummy.position.set(w.x, w.y + 1, w.z);
+                dummy.updateMatrix();
+                wallBuckets[w.texture].push(dummy.matrix);
+            });
+
+            // 3. Create Instanced Meshes for Walls
+            wallBuckets.forEach((matrices, textureIndex) => {
+                if(!matrices || matrices.length === 0) return;
+                
+                // Ensure texture exists (if map loaded with higher index)
+                const texData = wallTextures[textureIndex] || wallTextures[0];
+                const material = getMaterial(texData, wallMaterialCache);
+                
+                const count = matrices.length;
+                const mesh = new THREE.InstancedMesh(instancedBoxGeo, material, MAX_INSTANCES);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                mesh.userData = { type: 'wall', textureIndex: textureIndex }; // Helper for raycasting
+
+                for(let i=0; i<count; i++) {
+                    mesh.setMatrixAt(i, matrices[i]);
+                }
+                
+                mesh.instanceMatrix.needsUpdate = true;
+                wallsGroup.add(mesh);
+            });
+
+            // 4. Prepare buckets for floors
+            const floorBuckets = [];
+            mapData.floors.forEach(f => {
+                if(!floorBuckets[f.texture]) floorBuckets[f.texture] = [];
+                const dummy = new THREE.Object3D();
+                dummy.position.set(f.x, 0, f.z);
+                dummy.rotation.x = -Math.PI / 2;
+                dummy.updateMatrix();
+                floorBuckets[f.texture].push(dummy.matrix);
+            });
+
+            // 5. Create Instanced Meshes for Floors
+            floorBuckets.forEach((matrices, textureIndex) => {
+                 if(!matrices || matrices.length === 0) return;
+
+                 const texData = floorTextures[textureIndex] || floorTextures[0];
+                 const material = getMaterial(texData, floorMaterialCache);
+
+                 const count = matrices.length;
+                 const mesh = new THREE.InstancedMesh(instancedPlaneGeo, material, MAX_INSTANCES);
+                 mesh.receiveShadow = true;
+                 mesh.userData = { type: 'floor', textureIndex: textureIndex };
+
+                 for(let i=0; i<count; i++) {
+                     mesh.setMatrixAt(i, matrices[i]);
+                 }
+
+                 mesh.instanceMatrix.needsUpdate = true;
+                 floorsGroup.add(mesh);
+            });
+            
+            updateTriggerVisuals();
+        }
+
+        // Helper to Create 2D Text Sprite
+        function createTextSprite(message) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 256; 
+            canvas.height = 128;
+            
+            // Background for readability
+            ctx.fillStyle = "rgba(0,0,0,0.5)";
+            ctx.fillRect(0,0,256,128);
+            
+            // Text
+            ctx.fillStyle = "white";
+            ctx.font = "bold 24px Inter, sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(message.substring(0, 20), 128, 64); // Limit chars
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.scale.set(4, 2, 1);
+            return sprite;
+        }
+
+        // Helper to update just the triggers
+        function updateTriggerVisuals() {
+            triggersGroup.clear();
+            
+            mapData.triggers.forEach(t => {
+                const mesh = new THREE.Mesh(triggerGeometry, triggerMaterial);
+                mesh.position.set(t.x, t.y + 1, t.z); // Center like walls
+                
+                // Add wireframe edge for better visibility in editor
+                const wireframe = new THREE.LineSegments(
+                    new THREE.EdgesGeometry(triggerGeometry), 
+                    triggerWireframeMaterial
+                );
+                mesh.add(wireframe);
+                
+                // Add floating text label so user knows it's saved
+                const label = createTextSprite(t.text);
+                label.position.y = 1.5; // Float above box
+                mesh.add(label);
+
+                mesh.userData = { type: 'trigger', text: t.text };
+                triggersGroup.add(mesh);
+            });
+        }
+
+        // Player
+        const player = {
+            position: new THREE.Vector3(10, 1.7, 10),
+            velocity: new THREE.Vector3(0, 0, 0),
+            rotation: { x: 0, y: 0 },
+            onGround: false,
+            height: 1.7,
+            radius: 0.3,
+            stepDistance: 0
+        };
+
+        // Set proper rotation order for FPS camera
+        camera.rotation.order = 'YXZ';
+
+        // Raycaster for mouse picking
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let selectedPosition = null;
+
+        // Create enemy (UPDATED FOR CUSTOM MODELS)
+        function createEnemy(x, z) {
+            const group = new THREE.Group();
+            group.position.set(x, 0, z);
+            group.userData = { 
+                type: 'enemy', 
+                health: 5,
+                maxHealth: 5,
+                id: Date.now() + Math.random()
+            };
+
+            // CHECK: Do we use custom model?
+            if (STATE.enemyAppearance === 'custom' && STATE.customEnemyModel) {
+                gltfLoader.load(STATE.customEnemyModel, (gltf) => {
+                    const model = gltf.scene;
+                    
+                    // Auto-scale logic: Try to fit roughly within 2 units height
+                    const box = new THREE.Box3().setFromObject(model);
+                    const size = box.getSize(new THREE.Vector3());
+                    if (size.y > 0) {
+                        const scaleFactor = 2.5 / size.y; 
+                        model.scale.setScalar(scaleFactor);
+                    }
+                    
+                    // Center and adjust
+                    model.position.y = 0;
+                    
+                    model.traverse(node => {
+                        if (node.isMesh) {
+                            node.castShadow = true;
+                            // Add red tint to indicate it's an enemy
+                            if (node.material) {
+                                // Clone material so we don't affect shared instances
+                                node.material = node.material.clone();
+                                node.material.color.setHex(0xffaaaa);
+                            }
+                        }
+                    });
+                    
+                    group.add(model);
+                }, undefined, (err) => {
+                    console.error("Error loading custom enemy, falling back to default.", err);
+                    addDefaultEnemyGeometry(group);
+                });
+            } else {
+                // DEFAULT ENEMY
+                addDefaultEnemyGeometry(group);
+            }
+            
+            return group;
+        }
+
+        function addDefaultEnemyGeometry(group) {
+            // Body
+            const bodyGeometry = new THREE.BoxGeometry(1, 2, 1);
+            const bodyMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xff0000, 
+                roughness: 0.5 
+            });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = 1;
+            body.castShadow = true;
+            group.add(body);
+
+            // Head
+            const headGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+            const headMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xff6666, 
+                roughness: 0.5 
+            });
+            const head = new THREE.Mesh(headGeometry, headMaterial);
+            head.position.y = 2.5;
+            head.castShadow = true;
+            group.add(head);
+        }
+
+        // Get key for map storage
+        function getKey(x, y, z) {
+            return `${Math.round(x)},${Math.round(y)},${Math.round(z)}`;
+        }
+
+        // Place object
+        function placeObject(point) {
+            if (!point) return;
+            // Prevent placement if NONE tool is selected
+            if (STATE.currentTool === 'none') return;
+            
+            initAudio(); 
+
+            const x = Math.round(point.x / 2) * 2;
+            const y = Math.round(point.y / 2) * 2;
+            const z = Math.round(point.z / 2) * 2;
+
+            if (STATE.currentTool === 'wall') {
+                const key = getKey(x, y, z);
+                if (!mapData.walls.has(key)) {
+                    mapData.walls.set(key, { x, y, z, texture: STATE.selectedWallTexture });
+                    updateSceneVisuals(); 
+                }
+            } else if (STATE.currentTool === 'floor') {
+                const key = getKey(x, 0, z);
+                if (!mapData.floors.has(key)) {
+                    mapData.floors.set(key, { x, z, texture: STATE.selectedFloorTexture });
+                    updateSceneVisuals(); 
+                }
+                } else if (STATE.currentTool === 'model') {
+                if (!STATE.activeModelSourceId || !modelSources[STATE.activeModelSourceId]) {
+                    alert("No model selected! Import one or select from the dropdown.");
+                    return;
+                }
+                
+                const source = modelSources[STATE.activeModelSourceId];
+                
+                const instanceData = {
+                    id: Date.now() + Math.random(),
+                    sourceId: STATE.activeModelSourceId,
+                    name: source.name,
+                    position: { x: x, y: 0, z: z }, // Snap to grid
+                    rotation: { x: 0, y: 0, z: 0 },
+                    scale: { x: 1, y: 1, z: 1 }
+                };
+
+                importedModelsData.push(instanceData);
+                spawnModelVisuals(instanceData, true);
+            } else if (STATE.currentTool === 'enemy') {
+                    const uniqueId = Date.now() + Math.random();
+                    
+                    // Check if we are currently using a custom model
+                    const isCustom = STATE.enemyAppearance === 'custom' && STATE.customEnemyModel;
+
+                    const newEnemy = {
+                        id: uniqueId,
+                        type: 'enemy', 
+                        name: `Enemy_bot_${Math.floor(Math.random()*100)}`,
+                        position: { x: x, y: 0, z: z }, 
+                        rotation: { x: 0, y: 0, z: 0 },
+                        scale: { x: 1, y: 1, z: 1 },
+                        maxHealth: 5,
+                        speed: 2,
+                        damage: 10,
+                        // IMPORTANT: Save the model data if custom, or NULL if default
+                        customModelData: isCustom ? STATE.customEnemyModel : null 
+                    };
+                    importedModelsData.push(newEnemy);
+                    spawnModelVisuals(newEnemy, true);
+            } else if (STATE.currentTool === 'spawn') {
+                // Update data
+                mapData.playerSpawn = { x: x, y: 1.7, z: z };
+                // Update visual
+                updateSpawnVisual();
+            } else if (STATE.currentTool === 'trigger') {
+                const existingIndex = mapData.triggers.findIndex(t => t.x === x && t.y === y && t.z === z);
+                const text = document.getElementById('triggerTextInput').value || "AREA RESTRICTED";
+
+                if (existingIndex !== -1) {
+                    mapData.triggers[existingIndex].text = text;
+                } else {
+                    mapData.triggers.push({ x, y, z, text });
+                }
+                updateTriggerVisuals();
+            } else if (STATE.currentTool === 'erase') {
+                // Erase is handled in mousedown
+            }
+        }
+
+        // Remove object based on grid coordinates
+        function removeObject(x, y, z) {
+            let changed = false;
+
+            // Remove wall
+            const wallKey = getKey(x, y, z);
+            if (mapData.walls.has(wallKey)) {
+                mapData.walls.delete(wallKey);
+                changed = true;
+            }
+
+            // Remove floor
+            const floorKey = getKey(x, 0, z);
+            if (mapData.floors.has(floorKey)) {
+                mapData.floors.delete(floorKey);
+                changed = true;
+            }
+
+            // Remove trigger
+            const triggerIndex = mapData.triggers.findIndex(t => t.x === x && t.y === y && t.z === z);
+            if (triggerIndex !== -1) {
+                mapData.triggers.splice(triggerIndex, 1);
+                updateTriggerVisuals();
+                // Triggers are separate, so changed=false for scene update
+            }
+
+            if(changed) updateSceneVisuals();
+        }
+
+        // Mouse events for edit mode
+        let isMouseDown = false;
+        let isRightMouseDown = false; // New variable for Right Click
+
+        // Prevent default Right Click menu so we can use it for navigation
+        window.addEventListener('contextmenu', e => e.preventDefault());
+        
+        window.addEventListener('mousedown', (e) => {
+            // Init audio on first interaction
+            initAudio();
+
+            // Prevent canvas interaction if clicking UI
+            if (e.target.closest('#editor')) return;
+            if (e.target.closest('#modelManager')) return;
+
+            if (STATE.mode === 'edit') {
+                // HANDLE RIGHT CLICK (Navigation)
+                if (e.button === 2) {
+                    isRightMouseDown = true;
+                }
+                // HANDLE LEFT CLICK (Tools or Selection)
+                else if (e.button === 0) {
+                    if (STATE.isGizmoDragging) return;
+
+                    isMouseDown = true;
+                    
+                    // TOOL: NONE (SELECTION LOGIC ADDED HERE)
+                    if (STATE.currentTool === 'none') {
+                        raycaster.setFromCamera(mouse, camera);
+                        
+                        // Check against imported models
+                        const intersects = raycaster.intersectObjects(importedModelsGroup.children, true);
+                        
+                        if (intersects.length > 0) {
+                            // Traverse up to find the root object with the ID
+                            let obj = intersects[0].object;
+                            while(obj.parent && obj.parent !== importedModelsGroup) {
+                                obj = obj.parent;
+                            }
+                            
+                            // Select it
+                            if (obj.userData.id) {
+                                selectModel(obj.userData.id);
+                            }
+                        } else {
+                            // Clicked on empty space -> Deselect
+                            selectModel(null);
+                        }
+                    }
+
+                    // TOOL: ERASE
+                    else if (STATE.currentTool === 'erase') {
+                        // We must raycast specifically against the InstancedMeshes and Triggers
+                        raycaster.setFromCamera(mouse, camera);
+                        const objectsToCheck = [...wallsGroup.children, ...floorsGroup.children, ...triggersGroup.children, ...importedModelsGroup.children];
+                        const intersects = raycaster.intersectObjects(objectsToCheck, true);
+
+                        if (intersects.length > 0) {
+                            const hit = intersects[0];
+                            let tx, ty, tz;
+                            
+                            // If it's a trigger
+                            if (hit.object.userData.type === 'trigger' || (hit.object.parent && hit.object.parent.userData.type === 'trigger')) {
+                                 const triggerObj = hit.object.userData.type === 'trigger' ? hit.object : hit.object.parent;
+                                 tx = Math.round(triggerObj.position.x);
+                                 ty = Math.round(triggerObj.position.y - 1);
+                                 tz = Math.round(triggerObj.position.z);
+                            }
+                            // If it's an Imported Model (Standard Eraser)
+                            else if (hit.object.userData.isImportedModel || (hit.object.parent && hit.object.parent.parent === importedModelsGroup)) {
+                                let obj = hit.object;
+                                while(obj.parent && obj.parent !== importedModelsGroup) { obj = obj.parent; }
+                                deleteModel(obj.userData.id);
+                                return; // Skip the removeObject call below
+                            }
+                            else {
+                                // It's an instanced mesh (Wall or Floor)
+                                const p = hit.point.clone().sub(hit.face.normal.clone().multiplyScalar(0.1));
+                                tx = Math.round(p.x / 2) * 2;
+                                ty = Math.round(p.y / 2) * 2;
+                                tz = Math.round(p.z / 2) * 2;
+                            }
+
+                            removeObject(tx, ty, tz);
+                        }
+                    } 
+                    // TOOL: PLACE
+                    else {
+                        placeObject(selectedPosition);
+                    }
+                }
+            } else if (STATE.mode === 'play' && e.button === 0) {
+                shoot();
+            }
+        });
+
+        // Resets mouse state if the user clicks inside but releases outside the window
+        window.addEventListener('mouseup', () => {
+            isMouseDown = false;
+            isRightMouseDown = false;
+        });
+        window.addEventListener('mouseleave', () => { // catch-all
+            isMouseDown = false;
+            isRightMouseDown = false;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (STATE.mode === 'edit') {
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+                // 1. CAMERA ROTATION: Allow if Right Click is held OR (Left Click held AND Tool is None)
+                if (isRightMouseDown || (isMouseDown && STATE.currentTool === 'none' && !STATE.isGizmoDragging)) {
+                    camera.rotation.y -= e.movementX * 0.002;
+                    camera.rotation.x -= e.movementY * 0.002;
+                    camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+                } 
+                // 2. PAINT BRUSH: Allow only if Left Click held AND NOT Right Clicking (Navigating)
+                else if (isMouseDown && !isRightMouseDown && !STATE.isGizmoDragging) {
+                    if (STATE.currentTool !== 'erase' && STATE.currentTool !== 'none') {
+                        placeObject(selectedPosition);
+                    }
+                }
+            } else if (STATE.mode === 'play' && document.pointerLockElement) {
+                // MOVEMENT FREEZE FIX: If health <= 0 or FROZEN, don't look around
+                if (STATE.playerHealth <= 0 || STATE.isFrozen) return;
+
+                player.rotation.y -= e.movementX * 0.002;
+                player.rotation.x -= e.movementY * 0.002;
+                player.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, player.rotation.x));
+            }
+        });
+
+        // Pointer lock for play mode
+        renderer.domElement.addEventListener('click', () => {
+            if (STATE.mode === 'play') {
+                // If game over or frozen, don't lock pointer
+                if (STATE.playerHealth > 0 && !STATE.isFrozen) {
+                    renderer.domElement.requestPointerLock();
+                }
+            }
+        });
+
+        // Keyboard
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            initAudio(); 
+            
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                return;
+            }
+
+            // Use .code instead of .key to get physical key location (WASD works on AZERTY)
+            keys[e.code] = true;
+
+            if (e.code === 'KeyE') {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleMode();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                return;
+            }
+            keys[e.code] = false;
+        });
+
+        // Mode toggle
+        function toggleMode() {
+            STATE.mode = STATE.mode === 'edit' ? 'play' : 'edit';
+            
+            const editor = document.getElementById('editor');
+            const modelManager = document.getElementById('modelManager');
+            const hud = document.getElementById('hud');
+            const crosshair = document.getElementById('crosshair');
+            const modeIndicator = document.getElementById('mode-indicator');
+            const toggleBtn = document.getElementById('toggleMode');
+            const gameOverScreen = document.getElementById('gameOver');
+            const triggerOverlay = document.getElementById('triggerOverlay');
+
+            if (STATE.mode === 'play') {
+                editor.style.display = 'none';
+                modelManager.style.display = 'none';
+                hud.style.display = 'flex';
+                crosshair.style.display = 'block';
+                modeIndicator.textContent = 'PLAY MODE';
+                gameOverScreen.style.display = 'none';
+                
+                // HIDE Triggers in play mode
+                triggersGroup.visible = false;
+                
+                // Disable Gizmo
+                transformControl.detach();
+                transformControl.visible = false;
+
+                // Hide markers in play mode
+                spawnMarkerGroup.visible = false;
+
+                // Ensure values are numbers and exist, otherwise default to 10, 1.7, 10
+                const sx = mapData.playerSpawn ? Number(mapData.playerSpawn.x) : 10;
+                const sy = mapData.playerSpawn ? Number(mapData.playerSpawn.y) : 1.7;
+                const sz = mapData.playerSpawn ? Number(mapData.playerSpawn.z) : 10;
+
+                // Reset player position explicitly
+                player.position.set(sx, sy, sz);
+                
+                // Force Camera to snap immediately (prevents one-frame drift)
+                camera.position.copy(player.position);
+
+                player.velocity.set(0, 0, 0);
+                player.rotation.x = 0;
+                player.rotation.y = camera.rotation.y; // Sync Y rotation from editor to player
+                STATE.playerHealth = 100;
+                STATE.playerAmmo = 999;
+                
+                // Reset Trigger State
+                STATE.isFrozen = false;
+                triggerOverlay.style.display = 'none';
+                
+                // Reset enemies
+                importedModelsGroup.children.forEach(obj => {
+                    if (obj.userData.type === 'enemy') {
+                        obj.userData.health = obj.userData.maxHealth;
+                        obj.visible = true;
+                    }
+                });
+                
+                updateHUD();
+            } else {
+                editor.style.display = 'block';
+                modelManager.style.display = 'flex';
+                hud.style.display = 'none';
+                crosshair.style.display = 'none';
+                gameOverScreen.style.display = 'none';
+                triggerOverlay.style.display = 'none'; // Hide overlay in edit
+                modeIndicator.textContent = 'EDIT MODE';
+                spawnMarkerGroup.visible = true;
+                
+                // SHOW Triggers in edit mode
+                triggersGroup.visible = true;
+
+                // Reset enemies to original position from importedModelsData
+                importedModelsGroup.children.forEach(obj => {
+                    if (obj.userData.type === 'enemy') {
+                        // KILL SOUNDS ON RESET
+                        if (obj.userData.sound) {
+                            try { obj.userData.sound.source.stop(); } catch(e){}
+                            obj.userData.sound = null;
+                        }
+                        obj.userData.health = obj.userData.maxHealth;
+                        obj.visible = true;
+                        obj.rotation.set(0, 0, 0); 
+
+                        // Find the original data for this enemy
+                        const originalData = importedModelsData.find(d => d.id === obj.userData.id);
+                        if (originalData) {
+                            // Reset position to the editor saved state
+                            obj.position.set(originalData.position.x, originalData.position.y, originalData.position.z);
+                        }
+                    }
+                });
+                
+                // Re-enable Gizmo if model selected
+                transformControl.visible = true;
+                if(STATE.selectedModelId) {
+                     const obj = importedModelsGroup.children.find(o => o.userData.id === STATE.selectedModelId);
+                     if(obj) transformControl.attach(obj);
+                }
+
+                if (document.pointerLockElement) {
+                    document.exitPointerLock();
+                }
+            }
+
+            if (STATE.mode === 'edit') {
+                toggleBtn.innerHTML = '<span class="material-symbols-rounded">sports_esports</span> SWITCH TO PLAY MODE';
+            } else {
+                toggleBtn.innerHTML = '<span class="material-symbols-rounded">edit_square</span> SWITCH TO EDIT MODE';
+            }
+        }
+
+        // Shooting
+        function shoot() {
+            // MOVEMENT FREEZE FIX: Cannot shoot if dead or FROZEN
+            if (STATE.playerHealth <= 0 || STATE.isFrozen) return;
+
+            if (STATE.playerAmmo <= 0) return;
+
+            STATE.playerAmmo--;
+            
+            // PLAY SOUND
+            playShootSound();
+
+            const shootRaycaster = new THREE.Raycaster();
+            const direction = new THREE.Vector3(0, 0, -1);
+            direction.applyQuaternion(camera.quaternion);
+            
+            shootRaycaster.set(camera.position, direction);
+            
+            // Check Walls AND the entire Scene Hierarchy (Models + Enemies)
+            const objectsToCheck = [...wallsGroup.children, ...importedModelsGroup.children];
+            
+            // Recursive true to hit sub-meshes
+            const intersects = shootRaycaster.intersectObjects(objectsToCheck, true);
+            
+            if (intersects.length > 0) {
+                const hit = intersects[0];
+                let obj = hit.object;
+
+                // Traverse up to find the root object (the Enemy Group or Model Scene)
+                while(obj.parent && obj.parent !== scene && obj.parent !== wallsGroup && obj.parent !== importedModelsGroup) {
+                    obj = obj.parent;
+                }
+
+                if (obj.userData.type === 'enemy') {
+                    // HIT ENEMY
+                    obj.userData.health--;
+                    
+                    // Flash red
+                    obj.traverse(child => {
+                        if (child.isMesh && child.material) { 
+                            const oldHex = child.material.color.getHex();
+                            child.material.color.setHex(0xffffff);
+                            setTimeout(() => { 
+                                if(child.material) child.material.color.setHex(oldHex); 
+                            }, 50);
+                        }
+                    });
+                    
+                    if (obj.userData.health <= 0) {
+                        obj.visible = false;
+
+                        // PLAY DEATH SOUND
+                        if (audioCtx) {
+                            // Check for custom death sound
+                            if (obj.userData.customDeathSoundData) {
+                                fetch(obj.userData.customDeathSoundData)
+                                    .then(res => res.arrayBuffer())
+                                    .then(buffer => audioCtx.decodeAudioData(buffer))
+                                    .then(decoded => {
+                                        const source = audioCtx.createBufferSource();
+                                        source.buffer = decoded;
+                                        source.connect(audioCtx.destination);
+                                        source.start(0);
+                                    });
+                            } 
+                            // REMOVED THE ELSE BLOCK HERE (No default blip)
+                        }
+                        
+                        // STOP SOUND ON DEATH
+                        if (obj.userData.sound) {
+                            obj.userData.sound.gain.gain.value = 0;
+                            // Check if source exists before stopping
+                            if(obj.userData.sound.source) {
+                                try { obj.userData.sound.source.stop(); } catch(e) {}
+                            }
+                            obj.userData.sound = null; 
+                        }
+                    }
+                } else if (obj.userData.type === 'wall') {
+                    // HIT WALL - Just stops the bullet
+                    console.log("Hit wall");
+                }
+            }
+            
+            updateHUD();
+        }
+
+        // Update HUD
+        function updateHUD() {
+            // Using ceil to show 1 even if health is 0.1, looks better for floats
+            document.getElementById('healthValue').textContent = Math.ceil(STATE.playerHealth);
+            document.getElementById('ammoValue').textContent = STATE.playerAmmo;
+            const aliveEnemies = importedModelsGroup.children.filter(obj => 
+                obj.userData.type === 'enemy' && obj.visible
+            ).length;
+            document.getElementById('enemiesValue').textContent = aliveEnemies;
+
+            // VISUAL FEEDBACK FOR GAME OVER
+            if (STATE.playerHealth <= 0) {
+                document.getElementById('gameOver').style.display = 'flex';
+                if (document.pointerLockElement) {
+                    document.exitPointerLock();
+                }
+            } else {
+                document.getElementById('gameOver').style.display = 'none';
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // PHYSICS ENGINE (Optimized for Instanced Mesh)
+        // ------------------------------------------------------------------
+
+        // Helper to check collision with environment
+        function checkEnvironmentCollision(newPos) {
+            // 1. Box Collision for Walls (Pure Math against MapData)
+            // Much faster than looping through meshes
+            const playerRadius = player.radius;
+            const playerHeight = player.height;
+
+            const minX = newPos.x - playerRadius;
+            const maxX = newPos.x + playerRadius;
+            const minZ = newPos.z - playerRadius;
+            const maxZ = newPos.z + playerRadius;
+            const footY = newPos.y - playerHeight;
+            const headY = newPos.y + 0.2;
+
+            // Iterate Map Data values directly
+            for (const w of mapData.walls.values()) {
+                // Wall box (x,y,z is center-bottom, size 2x2x2. Actually current creation puts y+1)
+                // In createWall/InstancedMesh setup: dummy.position.set(w.x, w.y + 1, w.z);
+                // Box Geometry is 2x2x2.
+                // So the visual mesh extends from y (w.y) to (w.y+2).
+                // x extends w.x-1 to w.x+1.
+                
+                const wallMinX = w.x - 1;
+                const wallMaxX = w.x + 1;
+                const wallMinY = w.y;
+                const wallMaxY = w.y + 2;
+                const wallMinZ = w.z - 1;
+                const wallMaxZ = w.z + 1;
+
+                // AABB Collision Check
+                if (minX <= wallMaxX && maxX >= wallMinX &&
+                    footY <= wallMaxY && headY >= wallMinY &&
+                    minZ <= wallMaxZ && maxZ >= wallMinZ) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Player movement with Physics
+        function updatePlayer(delta) {
+            if (STATE.mode !== 'play') return;
+
+            // MOVEMENT FREEZE FIX: If health <= 0 or FROZEN, stop function immediately.
+            if (STATE.playerHealth <= 0 || STATE.isFrozen) return;
+
+            // TRIGGER ZONE CHECK
+            // We check if player is inside any trigger
+            // Triggers are 2x2x2 boxes centered at x, y+1, z
+            for (let t of mapData.triggers) {
+                const dx = Math.abs(player.position.x - t.x);
+                const dy = Math.abs(player.position.y - (t.y + 1)); // Center of trigger box
+                const dz = Math.abs(player.position.z - t.z);
+                
+                // Box collision (half extent = 1)
+                if (dx < 1 && dy < 1 && dz < 1) {
+                    STATE.isFrozen = true;
+                    document.getElementById('triggerTextValue').textContent = t.text;
+                    document.getElementById('triggerOverlay').style.display = 'flex';
+                    document.exitPointerLock();
+                    return; // Stop update
+                }
+            }
+
+            const moveSpeed = 5 * delta;
+            const direction = new THREE.Vector3();
+
+            if (keys['KeyW']) direction.z -= 1;
+            if (keys['KeyS']) direction.z += 1;
+            if (keys['KeyA']) direction.x -= 1;
+            if (keys['KeyD']) direction.x += 1;
+
+            // MOVEMENT & FOOTSTEP LOGIC
+            if (direction.length() > 0) {
+                direction.normalize();
+                direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.rotation.y);
+                
+                const oldPos = player.position.clone(); // Save old position
+
+                // Horizontal Collision Check
+                const rayOrigin = player.position.clone();
+                rayOrigin.y -= 1.0;
+                const rayDir = direction.clone();
+                const horizontalRaycaster = new THREE.Raycaster(rayOrigin, rayDir, 0, 0.5);
+                const hits = horizontalRaycaster.intersectObjects(importedModelsGroup.children, true);
+                
+                let blocked = false;
+                if (hits.length > 0) blocked = true;
+
+                if (!blocked) {
+                    const newPosition = player.position.clone();
+                    newPosition.x += direction.x * moveSpeed;
+                    newPosition.z += direction.z * moveSpeed;
+
+                    if (!checkEnvironmentCollision(newPosition)) {
+                        player.position.x = newPosition.x;
+                        player.position.z = newPosition.z;
+                    }
+                }
+
+                // Calculate Distance Moved for Footsteps
+                if (player.onGround) {
+                    const distMoved = player.position.distanceTo(oldPos);
+                    player.stepDistance += distMoved;
+
+                    // Trigger sound every 2.5 units
+                    if (player.stepDistance > 2.5) {
+                        playFootstepSound();
+                        player.stepDistance = 0;
+                    }
+                }
+            }
+
+            // GRAVITY & GROUND DETECTION (Mesh Walking)
+            player.velocity.y -= 20 * delta; // Gravity
+
+            // Raycast down to find ground (Mesh or Floor)
+            const downRay = new THREE.Raycaster(player.position, new THREE.Vector3(0, -1, 0), 0, 10);
+            const groundHits = downRay.intersectObjects(importedModelsGroup.children, true);
+            
+            let meshFloorY = -999;
+            if (groundHits.length > 0) {
+                // If we are close to the mesh surface, snap to it
+                // We check if the hit distance is close to player height
+                // player position is at eyes, so distance should be around 1.7
+                if (groundHits[0].distance <= player.height + 0.2 && groundHits[0].distance >= 0) {
+                   meshFloorY = groundHits[0].point.y + player.height;
+                }
+            }
+
+            // Calculate potential next Y
+            let nextY = player.position.y + player.velocity.y * delta;
+            
+            // Determine actual ground level (Highest of: Standard Floor 1.7 or Mesh Floor)
+            const standardFloor = 1.7;
+            const groundLevel = Math.max(standardFloor, meshFloorY);
+
+            if (nextY <= groundLevel) {
+                player.position.y = groundLevel;
+                player.velocity.y = 0;
+                player.onGround = true;
+            } else {
+                player.position.y = nextY;
+                player.onGround = false;
+            }
+
+            // Jumping
+            if (keys['Space'] && player.onGround) {
+                player.velocity.y = 6;
+                player.onGround = false;
+                // Add slight offset to unstuck from floor
+                player.position.y += 0.1;
+            }
+
+            // Update camera
+            camera.position.copy(player.position);
+            camera.rotation.y = player.rotation.y;
+            camera.rotation.x = player.rotation.x;
+        }
+
+        // ------------------------------------------------------------------
+        // ENEMY BEHAVIOR UPDATE
+        // ------------------------------------------------------------------
+        function updateEnemies(delta) {
+            importedModelsGroup.children.forEach(obj => {
+                // Only process objects tagged as enemies
+                if (obj.userData.type !== 'enemy' || !obj.visible) {
+                    // Ensure sound is mute if hidden/dead
+                    if (obj.userData.sound && obj.userData.sound.gain.gain.value > 0) {
+                        obj.userData.sound.gain.gain.value = 0;
+                    }
+                    return;
+                }
+
+                // Initialize sound on the fly if it doesn't exist yet (e.g. game started before click)
+                if (!obj.userData.sound && audioCtx && audioCtx.state === 'running') {
+                    createEnemySound(obj);
+                }
+
+                const dist = obj.position.distanceTo(player.position);
+                
+                // *** NEW: HANDLE SOUND PROXIMITY ***
+                if (obj.userData.sound) {
+                    const maxAudioDist = 25; // Distance where sound hits 0 volume
+                    let volume = 0;
+                    
+                    if (dist < maxAudioDist) {
+                        // Calculate volume: 1.0 at close range, 0.0 at max range
+                        volume = 1 - (dist / maxAudioDist);
+                        // Clamp to prevent negative values
+                        volume = Math.max(0, volume); 
+                    }
+                    
+                    // Smoothly adjust volume to prevent popping
+                    obj.userData.sound.gain.gain.setTargetAtTime(volume * 0.3, audioCtx.currentTime, 0.1);
+                }
+
+                if (dist <= 15) { 
+                    // 1. Look at player (Y-axis only)
+                    obj.lookAt(player.position.x, obj.position.y, player.position.z);
+
+                    // 2. Simple Chase Logic
+                    const dir = new THREE.Vector3().subVectors(player.position, obj.position).normalize();
+                    const speed = obj.userData.speed || 2;
+                    obj.position.add(dir.multiplyScalar(speed * delta));
+
+                    // 3. Deal Damage
+                    if (dist <= 2 && STATE.playerHealth > 0) {
+                        const damage = obj.userData.damage || 10;
+                        STATE.playerHealth -= damage * delta;
+                        
+                        if (STATE.playerHealth < 0) STATE.playerHealth = 0;
+                        updateHUD();
+                    }
+                }
+            });
+        }
+
+        // Clear map
+        document.getElementById('clearMap').onclick = () => {
+            if (confirm('Clear entire map?')) {
+                mapData = { 
+                    walls: new Map(), 
+                    floors: new Map(), 
+                    enemies: [], 
+                    triggers: [],
+                    playerSpawn: { x: 10, y: 1.7, z: 10 } // Reset to default
+                };
+                updateSpawnVisual(); // Reset visual
+                
+                // Clear scene objects
+                triggersGroup.clear();
+                updateSceneVisuals(); // Clears walls/floors
+                
+                // Clear imported models
+                importedModelsGroup.clear();
+                importedModelsData = [];
+                modelSources = {}; // Clear pooling cache
+                updateModelListUI();
+                selectModel(null);
+
+                resetTextures(); 
+            }
+        };
+
+        // Save map to JSON file - NOW SUPPORTS DHC AND BROWSER + OBJECT POOLING + TRIGGERS
+        document.getElementById('saveMap').onclick = () => {
+            const data = {
+                wallTextures: wallTextures,
+                floorTextures: floorTextures,
+                walls: Array.from(mapData.walls.values()),
+                floors: Array.from(mapData.floors.values()),
+                enemies: mapData.enemies,
+                triggers: mapData.triggers,
+                playerSpawn: mapData.playerSpawn,
+                // SAVE POOLING DATA
+                modelSources: modelSources, 
+                models: importedModelsData, 
+                // Settings
+                customEnemyModel: STATE.customEnemyModel, 
+                enemyAppearance: STATE.enemyAppearance,
+                customShootSoundData: STATE.customShootSoundData,
+                customShootSoundName: STATE.customShootSoundName
+            };
+            const json = JSON.stringify(data, null, 2);
+
+            // CHECK: Are we inside DecSoft HTML Compiler?
+            if (typeof dhc !== 'undefined') {
+                // Use DHC API to save file
+                dhc.dialogs.saveFile({
+                    title: 'Save Map File',
+                    fileName: `fps_map_${new Date().getTime()}.json`,
+                    fileTypes: 'JSON Map|*.json',
+                    overwritePrompt: true
+                }).then((filePath) => {
+                    if (filePath !== '') {
+                        dhc.files.writeTextFile({
+                            filePath: filePath,
+                            contents: json
+                        }).then(() => {
+                            alert('Map saved successfully via DHC!');
+                        },
+                        (error) => {
+                            alert('An error occurred saving: ' + error);
+                        });
+                    }
+                });
+            } else {
+                // Fallback: Browser Download (Original Logic)
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `fps_map_${new Date().getTime()}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                alert('Map saved as JSON file! (Browser Mode)');
+            }
+        };
+
+        // Load map from JSON file
+        document.getElementById('loadMap').onclick = () => {
+            document.getElementById('fileInput').click();
+        };
+
+        // Handle file upload
+        document.getElementById('fileInput').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    
+                    // 1. RESTORE TEXTURES
+                    wallTextures = data.wallTextures || INITIAL_WALL_TEXTURES;
+                    floorTextures = data.floorTextures || INITIAL_FLOOR_TEXTURES;
+
+                    // RE-DECODE AUDIO FOR FLOORS
+                    initAudio(); // Ensure context exists
+                    floorTextures.forEach((tex, index) => {
+                        if(tex.soundData) {
+                            decodeTextureSound(index);
+                        }
+                    });
+                    
+                    STATE.selectedWallTexture = 0; 
+                    STATE.selectedFloorTexture = 0;
+                    initTextureSelectors(); 
+
+                    // 2. RESTORE ENEMY SETTINGS
+                    if (data.customEnemyModel) {
+                        STATE.customEnemyModel = data.customEnemyModel;
+                    }
+                    if (data.enemyAppearance) {
+                        STATE.enemyAppearance = data.enemyAppearance;
+                        // Update UI
+                        const radio = document.querySelector(`input[name="enemyType"][value="${data.enemyAppearance}"]`);
+                        if(radio) radio.checked = true;
+                        
+                        const fileInput = document.getElementById('enemyModelFile');
+                        if (STATE.enemyAppearance === 'custom') {
+                            fileInput.style.opacity = '1';
+                            fileInput.style.pointerEvents = 'all';
+                        }
+                    }
+
+                    // 3. Restore Spawn Point
+                    if (data.playerSpawn) {
+                        mapData.playerSpawn = data.playerSpawn;
+                    } else {
+                        mapData.playerSpawn = { x: 10, y: 1.7, z: 10 }; // Default
+                    }
+                    updateSpawnVisual(); // Update the green cylinder location
+
+                    // 4. RESTORE AUDIO
+                    if (data.customShootSoundData) {
+                        STATE.customShootSoundData = data.customShootSoundData;
+                        
+                        // Restore Filename and Update UI
+                        STATE.customShootSoundName = data.customShootSoundName || "Custom Audio File";
+                        const nameLabel = document.getElementById('shootSoundName');
+                        nameLabel.textContent = "Loaded: " + STATE.customShootSoundName;
+                        nameLabel.style.display = "block";
+
+                        loadSoundFromBase64(data.customShootSoundData);
+                    } else {
+                        STATE.customShootSoundData = null;
+                        STATE.customShootSoundName = null;
+                        
+                        // Hide label if no sound
+                        document.getElementById('shootSoundName').style.display = 'none';
+                        
+                        shootSoundBuffer = null; // Revert to default
+                    }
+
+                    // 5. Clear current map
+                    mapData = { walls: new Map(), floors: new Map(), triggers: [] };
+                    triggersGroup.clear();
+                    importedModelsGroup.clear();
+                    importedModelsData = [];
+                    modelSources = {};
+                    updateModelListUI();
+
+                    // 6. Load geometry data (Logical)
+                    if (data.walls) {
+                        data.walls.forEach(w => {
+                            mapData.walls.set(getKey(w.x, w.y, w.z), w);
+                        });
+                    }
+
+                    // 7. Load floors (Logical)
+                    if (data.floors) {
+                        data.floors.forEach(f => {
+                            mapData.floors.set(getKey(f.x, 0, f.z), f);
+                        });
+                    }
+                    
+                    // 8. Load Triggers
+                    if (data.triggers) {
+                        mapData.triggers = data.triggers;
+                    }
+
+                    // 9. Rebuild Visuals
+                    updateSceneVisuals();
+
+                    // 10. Load Legacy Enemies (Migration)
+                    if (data.enemies && data.enemies.length > 0) {
+                        data.enemies.forEach(e => {
+                            // Look for model data on the enemy OR globally in the save file
+                            // Old versions saved the model in 'data.customEnemyModel' at the root
+                            let modelToUse = e.customModelData || data.customEnemyModel || null;
+                            
+                            // If we found model data, set type to custom
+                            const visualType = modelToUse ? 'custom' : 'default';
+                            
+                            const newEnemy = {
+                                id: e.id || (Date.now() + Math.random()),
+                                type: 'enemy',
+                                name: "Migrated Enemy",
+                                position: { x: e.x, y: 0, z: e.z },
+                                rotation: { x: 0, y: 0, z: 0 },
+                                scale: { x: 1, y: 1, z: 1 },
+                                
+                                // Apply the global model data to this enemy
+                                visualType: visualType,
+                                customModelData: modelToUse,
+                                
+                                maxHealth: e.maxHealth || 5,
+                                speed: e.speed || 2,
+                                damage: e.damage || 10
+                            };
+                            importedModelsData.push(newEnemy);
+                        });
+                    }
+
+                    // 11. Load Imported Models with POOLING
+                    if (data.modelSources) modelSources = data.modelSources;
+                    
+                    if (data.models) {
+                        importedModelsData = [...importedModelsData, ...data.models];
+                    }
+
+                    // Spawn visuals for ALL models (Legacy & New)
+                    // This loop must be OUTSIDE the 'if (data.models)' check to work for old files
+                    importedModelsData.forEach(modelData => {
+                        // Handle Backward Compatibility for files before Pooling
+                        if (!modelData.sourceId && modelData.url) {
+                            const tempSourceId = 'legacy_' + modelData.id;
+                            modelSources[tempSourceId] = { name: modelData.name, url: modelData.url };
+                            modelData.sourceId = tempSourceId;
+                            delete modelData.url; 
+                        }
+                        
+                        spawnModelVisuals(modelData); 
+                    });
+
+                    alert('Map loaded successfully!');
+                } catch (error) {
+                    alert('Error loading map: Invalid JSON file!');
+                    console.error(error);
+                }
+            };
+            reader.readAsText(file);
+            
+            e.target.value = '';
+        };
+
+        // Tool selection
+        document.querySelectorAll('input[name="tool"]').forEach(radio => {
+            radio.onchange = (e) => {
+                STATE.currentTool = e.target.value;
+                
+                // Reset/Hide all groups first
+                document.getElementById('triggerSettings').classList.add('hidden');
+                document.getElementById('enemyAppearanceGroup').classList.add('hidden');
+                document.getElementById('wallTextureGroup').classList.add('hidden');
+                document.getElementById('floorTextureGroup').classList.add('hidden');
+                document.getElementById('modelSettingsGroup').classList.add('hidden');
+
+                // Show specific group based on tool
+                if (STATE.currentTool === 'trigger') {
+                    document.getElementById('triggerSettings').classList.remove('hidden');
+                } 
+                else if (STATE.currentTool === 'enemy') {
+                    document.getElementById('enemyAppearanceGroup').classList.remove('hidden');
+                }
+                else if (STATE.currentTool === 'wall') {
+                    document.getElementById('wallTextureGroup').classList.remove('hidden');
+                } 
+                else if (STATE.currentTool === 'floor') {
+                    document.getElementById('floorTextureGroup').classList.remove('hidden');
+                }
+                // NEW: Show model settings
+                else if (STATE.currentTool === 'model') {
+                    document.getElementById('modelSettingsGroup').classList.remove('hidden');
+                    updateModelSourceDropdown(); // Refresh list when opening
+                }
+            };
+        });
+
+        // Mode toggle button
+        document.getElementById('toggleMode').onclick = toggleMode;
+
+        // Map size controls
+        document.getElementById('mapWidth').oninput = function() {
+            document.getElementById('widthValue').textContent = this.value;
+        };
+
+        document.getElementById('mapLength').oninput = function() {
+            document.getElementById('lengthValue').textContent = this.value;
+        };
+
+        document.getElementById('resizeMap').onclick = () => {
+            STATE.mapWidth = parseInt(document.getElementById('mapWidth').value);
+            STATE.mapLength = parseInt(document.getElementById('mapLength').value);
+            alert(`Map size set to ${STATE.mapWidth}x${STATE.mapLength}`);
+        };
+
+        // Set initial camera position for Edit Mode
+        camera.position.set(20, 30, 20);
+        camera.lookAt(0, 0, 0);
+
+        // Grid helper
+        const gridHelper = new THREE.GridHelper(100, 50, 0x00ff00, 0x004400);
+        gridHelper.position.set(1, 0, 1);
+        scene.add(gridHelper);
+
+        // Animation loop
+        const clock = new THREE.Clock();
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            // Cloud Animation
+            cloudGroup.children.forEach(cloud => {
+                cloud.position.x += 5 * delta; 
+                if (cloud.position.x > 150) { 
+                    cloud.position.x = -150; 
+                    cloud.position.z = (Math.random() - 0.5) * 300;
+                    cloud.position.y = Math.random() * 20 + 75;
+                }
+            });
+
+            if (STATE.mode === 'edit') {
+                const speed = 20 * delta;
+                if (!STATE.isGizmoDragging) {
+                    if (keys['KeyW']) camera.translateZ(-speed);
+                    if (keys['KeyS']) camera.translateZ(speed);
+                    if (keys['KeyA']) camera.translateX(-speed);
+                    if (keys['KeyD']) camera.translateX(speed);
+                    if (keys['Space']) camera.position.y += speed;
+                    if (keys['ShiftLeft'] || keys['ShiftRight']) camera.position.y -= speed;
+                }
+                
+                raycaster.setFromCamera(mouse, camera);
+                const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+                const intersectPoint = new THREE.Vector3();
+                raycaster.ray.intersectPlane(ground, intersectPoint);
+                selectedPosition = intersectPoint;
+
+                if(gridHelper) gridHelper.visible = true;
+            } else {
+                updatePlayer(delta);
+                updateEnemies(delta);
+                if(gridHelper) gridHelper.visible = false;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // ----------------------------------------------------
+        // ENEMY VISUAL SWAPPING LOGIC
+        // ----------------------------------------------------
+
+        // 1. Helper: Rebuild the Enemy Visuals based on data
+        function updateEnemyVisuals(obj, data) {
+            // Clear existing meshes (keep the group)
+            for (let i = obj.children.length - 1; i >= 0; i--) {
+                const child = obj.children[i];
+                if (child.isMesh || child.type === 'Group') {
+                    obj.remove(child);
+                }
+            }
+
+            const type = data.visualType || 'default';
+
+            if (type === 'none') {
+                // Add a transparent helper box so it can still be clicked in Edit Mode
+                // We set visible=false in Play Mode via the toggleMode function usually, 
+                // but for now we just rely on it being invisible to the eye but raycastable.
+                const geo = new THREE.BoxGeometry(1, 2, 1);
+                const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.3 });
+                const helper = new THREE.Mesh(geo, mat);
+                helper.userData.isHelper = true; // Tag it
+                helper.position.y = 1;
+                obj.add(helper);
+            } 
+            else if (type === 'custom' && data.customModelData) {
+                gltfLoader.load(data.customModelData, (gltf) => {
+                    const model = gltf.scene;
+                    // Auto-scale
+                    const box = new THREE.Box3().setFromObject(model);
+                    const size = box.getSize(new THREE.Vector3());
+                    if (size.y > 0) {
+                        const scaleFactor = 2.0 / size.y;
+                        model.scale.setScalar(scaleFactor);
+                    }
+                    model.position.y = 0;
+                    
+                    model.traverse(node => {
+                        if (node.isMesh) {
+                            node.castShadow = true;
+                            if (node.material) {
+                                node.material = node.material.clone();
+                                // Optional: Tint custom models slightly red to indicate enemy? 
+                                // node.material.color.setHex(0xffaaaa); 
+                            }
+                        }
+                    });
+                    obj.add(model);
+                });
+            } 
+            else {
+                // Default
+                addDefaultEnemyGeometry(obj);
+            }
+        }
+
+        // 2. UI Listener: Visual Type Dropdown
+        document.getElementById('enemyVisualType').addEventListener('change', (e) => {
+            if (!STATE.selectedModelId) return;
+
+            const val = e.target.value;
+            const data = importedModelsData.find(d => d.id === STATE.selectedModelId);
+            const obj = importedModelsGroup.children.find(o => o.userData.id === STATE.selectedModelId);
+
+            if (data && obj) {
+                data.visualType = val; // Save to data
+                
+                // Show/Hide File Input
+                const fileGroup = document.getElementById('enemyCustomModelGroup');
+                if (val === 'custom') fileGroup.classList.remove('hidden');
+                else fileGroup.classList.add('hidden');
+
+                // Update Scene
+                updateEnemyVisuals(obj, data);
+            }
+        });
+
+        // 3. UI Listener: Replace Model File Input
+        document.getElementById('enemyReplaceModelInput').addEventListener('change', (e) => {
+            if (!STATE.selectedModelId) return;
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const base64 = event.target.result;
+                const data = importedModelsData.find(d => d.id === STATE.selectedModelId);
+                const obj = importedModelsGroup.children.find(o => o.userData.id === STATE.selectedModelId);
+
+                if (data && obj) {
+                    data.visualType = 'custom';
+                    data.customModelData = base64; // Update data
+                    updateEnemyVisuals(obj, data); // Update visual
+                    alert("Enemy model updated!");
+                }
+            };
+            reader.readAsDataURL(file);
+            e.target.value = '';
+        });
+
+        // 4. OVERRIDE: Update selectModel to populate the new inputs
+        // We need to inject this logic into the existing selectModel function.
+        // Since we can't easily edit the middle of a function in this format, 
+        // we will hook into the selection logic by listening for UI updates or 
+        // you can simply PASTE THIS LOGIC at the end of your existing selectModel(id) function.
+
+        const originalSelectModel = selectModel;
+        selectModel = function(id) {
+            originalSelectModel(id); // Call original
+            
+            if (id) {
+                const data = importedModelsData.find(m => m.id === id);
+                if (data && data.type === 'enemy') {
+                    const visType = data.visualType || (data.customModelData ? 'custom' : 'default');
+                    
+                    // Set Dropdown
+                    document.getElementById('enemyVisualType').value = visType;
+                    
+                    // Show/Hide File Input
+                    const fileGroup = document.getElementById('enemyCustomModelGroup');
+                    if (visType === 'custom') fileGroup.classList.remove('hidden');
+                    else fileGroup.classList.add('hidden');
+                }
+            }
+        };
+
+        // Window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize
+        initTextureSelectors();
+        
+        // Create starting floor (Fill logic)
+        for (let x = -10; x <= 10; x += 2) {
+            for (let z = -10; z <= 10; z += 2) {
+                mapData.floors.set(getKey(x, 0, z), { x, z, texture: 0 });
+            }
+        }
+        updateSceneVisuals();
+
+        // Show editor panel on load
+        document.getElementById('editor').style.display = 'block';
+
+        // Start animation
+        animate();
+    
+        // --- UNDO SYSTEM INJECTION ---
+        let undoStack = [];
+        const MAX_UNDO = 50;
+
+        // Creates a deep copy of the current environment and entities
+        function cloneGameState() {
+            return {
+                walls: Array.from(mapData.walls.entries()),
+                floors: Array.from(mapData.floors.entries()),
+                triggers: JSON.parse(JSON.stringify(mapData.triggers)),
+                playerSpawn: JSON.parse(JSON.stringify(mapData.playerSpawn)),
+                models: JSON.parse(JSON.stringify(importedModelsData))
+            };
+        }
+
+        // Saves state before an action modifies the scene
+        function saveHistoryState() {
+            if (STATE.mode !== 'edit') return;
+            undoStack.push(cloneGameState());
+            if (undoStack.length > MAX_UNDO) undoStack.shift();
+        }
+
+        // Restores the previous state
+        function performUndo() {
+            if (undoStack.length === 0 || STATE.mode !== 'edit') return;
+            const prevState = undoStack.pop();
+
+            // Restore MapData structures
+            mapData.walls = new Map(prevState.walls);
+            mapData.floors = new Map(prevState.floors);
+            mapData.triggers = prevState.triggers;
+            mapData.playerSpawn = prevState.playerSpawn;
+
+            // Restore Models data
+            importedModelsData = prevState.models;
+
+            // Refresh environment visuals
+            updateSceneVisuals();
+            updateSpawnVisual();
+
+            // Re-spawn all imported models/enemies safely
+            importedModelsGroup.clear();
+            importedModelsData.forEach(modelData => {
+                spawnModelVisuals(modelData, false); // false prevents auto-selecting during loop
+            });
+            
+            // Refresh UI
+            updateModelListUI();
+            selectModel(null); // Detach gizmo to prevent ghost manipulations
+        }
+
+        // Hook 1: Listen for Ctrl+Z
+        window.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.code === 'KeyZ') {
+                e.preventDefault();
+                performUndo();
+            }
+        });
+
+        // Hook 2: Mouse down on canvas (Brush/Placement/Erase strokes)
+        window.addEventListener('mousedown', (e) => {
+            if (e.target.closest('#editor') || e.target.closest('#modelManager')) return;
+            if (STATE.mode === 'edit' && (e.button === 0 || e.button === 2)) {
+                saveHistoryState();
+            }
+        }, true); // Capture phase
+
+        // Hook 3: Global function overrides (Safe monkey-patching)
+        const _origDeleteModel = deleteModel;
+        deleteModel = function(id) { saveHistoryState(); _origDeleteModel(id); };
+
+        const _origDuplicateModel = duplicateModel;
+        duplicateModel = function(id) { saveHistoryState(); _origDuplicateModel(id); };
+
+        // Hook 4: Clear Map Button
+        const clearBtnUndo = document.getElementById('clearMap');
+        if(clearBtnUndo) {
+            const _origClear = clearBtnUndo.onclick;
+            clearBtnUndo.onclick = (e) => { saveHistoryState(); _origClear(e); };
+        }
+
+        // Hook 5: Gizmo Dragging
+        if (typeof transformControl !== 'undefined') {
+            transformControl.addEventListener('dragging-changed', function (event) {
+                if (event.value) saveHistoryState(); // Event.value is true when drag starts
+            });
+        }
+
+        // Hook 6: Inspector Transform Typing
+        ['posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ', 'sclX', 'sclY', 'sclZ'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('focus', saveHistoryState);
+        });
+
+        // Hook 7: Enemy Stats Typing
+        ['enemyHealth', 'enemySpeed', 'enemyDamage'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('focus', saveHistoryState);
+        });
+        // --- END UNDO SYSTEM INJECTION ---
+
+    </script>
+</body>
+</html>
