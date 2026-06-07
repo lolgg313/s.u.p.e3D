@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>s.u.p.e - 3D Visual Scripting</title>
+    <style>
+        :root {
+            --bg-dark: #121212;
+            --bg-panel: #1e1e1e;
+            --bg-node: #2a2a2a;
+            --text-main: #e0e0e0;
+            --text-muted: #888;
+            --accent: #007acc;
+            --pin-exec: #ffffff;
+            --pin-num: #4caf50;
+            --btn-save: #2e7d32;
+            --btn-load: #1565c0;
+            --btn-reset: #e65100;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; }
+
+        body { display: flex; height: 100vh; overflow: hidden; background-color: var(--bg-dark); color: var(--text-main); }
+
+        /* 3D Viewport */
+        #viewport { width: 40%; height: 100%; position: relative; border-right: 2px solid #333; background: #000; }
+        #canvas-container { width: 100%; height: 100%; }
+        .viewport-label { position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.7); padding: 8px 12px; border-radius: 4px; font-size: 14px; font-weight: bold; pointer-events: none; z-index: 10; letter-spacing: 1px; }
+
+        /* Blueprint Editor */
+        #editor { width: 60%; height: 100%; position: relative; background-color: var(--bg-panel); background-image: radial-gradient(#333 1px, transparent 1px); background-size: 25px 25px; overflow: hidden; }
+        
+        /* Toolbar */
+        #toolbar { position: absolute; top: 15px; left: 15px; z-index: 100; display: flex; gap: 8px; flex-wrap: wrap; max-width: 95%; background: rgba(20,20,20,0.8); padding: 10px; border-radius: 8px; border: 1px solid #444;}
+        button { background: #333; color: white; border: 1px solid #555; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; font-size: 13px; }
+        button:hover { filter: brightness(1.2); transform: translateY(-1px); }
+        .btn-io { background: var(--btn-save); border-color: #1b5e20; }
+        .btn-io.load { background: var(--btn-load); border-color: #0d47a1; }
+        .btn-reset { background: var(--btn-reset); border-color: #bf360c; }
+        .toolbar-divider { border-left: 1px solid #555; margin: 0 4px; height: 32px; }
+
+        /* Node Styling - Increased Size */
+        .node { position: absolute; background: var(--bg-node); border: 1px solid #444; border-radius: 8px; width: 250px; box-shadow: 0 6px 20px rgba(0,0,0,0.6); display: flex; flex-direction: column; z-index: 10; }
+        .node.selected { border-color: var(--accent); box-shadow: 0 0 12px rgba(0, 122, 204, 0.6); z-index: 11; }
+        .node-header { padding: 12px; background: #222; border-top-left-radius: 8px; border-top-right-radius: 8px; font-weight: bold; font-size: 14px; cursor: grab; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center; }
+        .node-header:active { cursor: grabbing; }
+        .node-delete { cursor: pointer; color: #ff5555; font-size: 16px; padding: 0 5px; }
+        .node-body { padding: 12px; display: flex; flex-direction: row; justify-content: space-between; gap: 10px; }
+        
+        .pins-in, .pins-out { display: flex; flex-direction: column; gap: 14px; }
+        .pins-out { align-items: flex-end; }
+        
+        .pin-row { display: flex; align-items: center; gap: 8px; font-size: 13px; height: 24px; }
+        
+        /* Enlarged Hitbox for easier attachment */
+        .pin-container { display: flex; justify-content: center; align-items: center; width: 22px; height: 22px; cursor: crosshair; }
+        .pin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #111; transition: transform 0.1s; pointer-events: none; }
+        .pin-container:hover .pin { transform: scale(1.3); }
+        .pin-container.exec .pin { background-color: var(--pin-exec); }
+        .pin-container.number .pin { background-color: var(--pin-num); }
+        
+        /* Increased Input Size */
+        .node-input { width: 60px; background: #111; border: 1px solid #555; color: white; padding: 4px 6px; border-radius: 4px; font-size: 12px; outline: none; transition: border 0.2s; }
+        .node-input:focus { border-color: var(--accent); }
+
+        /* SVG for Connections */
+        #connections { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        .wire { fill: none; stroke-width: 4; stroke-linecap: round; }
+        .wire.exec { stroke: var(--pin-exec); }
+        .wire.number { stroke: var(--pin-num); }
+        .wire-temp { stroke: #aaa; stroke-dasharray: 6,6; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="viewport">
+        <div class="viewport-label">s.u.p.e 3D Render</div>
+        <div id="canvas-container"></div>
+    </div>
+
+    <div id="editor">
+        <div id="toolbar">
+            <button onclick="addNode('EventTick')">+ Tick</button>
+            <button onclick="addNode('EventTimer')" style="color:#ffb3d9;">+ Timer</button>
+            <span style="margin: 0 4px;"></span>
+            <button onclick="addNode('RotateObject')">+ Rotate</button>
+            <button onclick="addNode('MoveObject')">+ Move</button>
+            <button onclick="addNode('SetColor')" style="color:#ffdca8;">+ Color</button>
+            <button onclick="addNode('DestroyObject')" style="color:#ffb3b3;">+ Destroy</button>
+            <span style="margin: 0 4px;"></span>
+            <button onclick="addNode('NumberValue')">+ Number</button>
+            <div class="toolbar-divider"></div>
+            <button onclick="resetScene()" class="btn-reset">Reset Scene</button>
+            <div class="toolbar-divider"></div>
+            <button onclick="saveSystemToPC()" class="btn-io">Save to PC</button>
+            <button onclick="loadSystemFromPC()" class="btn-io load">Load from PC</button>
+            <button onclick="clearSystem()" style="background: #4a1a1a; border-color: #4a1a1a;">Clear Canvas</button>
+        </div>
+        <svg id="connections"></svg>
+    </div>
+
+    <script>
+        /** ==========================================
+         * PART 1: 3D SCENE (THREE.JS)
+         * ========================================== */
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x151515);
+        
+        const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+        camera.position.set(4, 4, 6);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 5);
+        scene.add(dirLight);
+
+        const geometry = new THREE.BoxGeometry(1.8, 1.8, 1.8);
+        const defaultColor = 0x007acc;
+        const material = new THREE.MeshStandardMaterial({ color: defaultColor, metalness: 0.2, roughness: 0.5 });
+        let targetObject = new THREE.Mesh(geometry, material);
+        scene.add(targetObject);
+
+        const grid = new THREE.GridHelper(10, 10, 0x555555, 0x222222);
+        scene.add(grid);
+
+        let isObjectDestroyed = false;
+
+        function resetScene() {
+            if (isObjectDestroyed) {
+                scene.add(targetObject);
+                isObjectDestroyed = false;
+            }
+            targetObject.position.set(0, 0, 0);
+            targetObject.rotation.set(0, 0, 0);
+            targetObject.scale.set(1, 1, 1);
+            targetObject.material.color.setHex(defaultColor);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+        /** ==========================================
+         * PART 2: VISUAL SCRIPTING ENGINE
+         * ========================================== */
+        const editor = document.getElementById('editor');
+        const svgLayer = document.getElementById('connections');
+        
+        let nodes = {}; 
+        let wires = []; 
+        let nextNodeId = 1;
+
+        let isDraggingNode = false;
+        let draggedNode = null;
+        let dragOffset = { x: 0, y: 0 };
+        
+        let isWiring = false;
+        let wireStartPin = null;
+        let tempWireEl = null;
+
+        const NODE_DEFS = {
+            'EventTick': {
+                title: 'Event: Tick', color: '#8b0000',
+                outputs: [ { id: 'execOut', label: 'Exec', type: 'exec' } ], inputs: []
+            },
+            'EventTimer': {
+                title: 'Event: Timer', color: '#c2185b',
+                inputs: [ { id: 'interval', label: 'Seconds', type: 'number', default: 1.0, isEditable: true } ],
+                outputs: [ { id: 'execOut', label: 'Exec', type: 'exec' } ]
+            },
+            'RotateObject': {
+                title: 'Action: Rotate', color: '#005f8b',
+                inputs: [
+                    { id: 'execIn', label: 'Exec', type: 'exec' },
+                    { id: 'rotX', label: 'Speed X', type: 'number', default: 0.01, isEditable: true },
+                    { id: 'rotY', label: 'Speed Y', type: 'number', default: 0.02, isEditable: true }
+                ],
+                outputs: [ { id: 'execOut', label: 'Exec', type: 'exec' } ]
+            },
+            'MoveObject': {
+                title: 'Action: Move', color: '#6a1b9a',
+                inputs: [
+                    { id: 'execIn', label: 'Exec', type: 'exec' },
+                    { id: 'moveX', label: 'Dir X', type: 'number', default: 0.01, isEditable: true },
+                    { id: 'moveY', label: 'Dir Y', type: 'number', default: 0.00, isEditable: true },
+                    { id: 'moveZ', label: 'Dir Z', type: 'number', default: 0.00, isEditable: true }
+                ],
+                outputs: [ { id: 'execOut', label: 'Exec', type: 'exec' } ]
+            },
+            'SetColor': {
+                title: 'Action: Set Color RGB', color: '#d84315',
+                inputs: [
+                    { id: 'execIn', label: 'Exec', type: 'exec' },
+                    { id: 'r', label: 'Red (0-255)', type: 'number', default: 255, isEditable: true },
+                    { id: 'g', label: 'Green (0-255)', type: 'number', default: 0, isEditable: true },
+                    { id: 'b', label: 'Blue (0-255)', type: 'number', default: 0, isEditable: true }
+                ],
+                outputs: [ { id: 'execOut', label: 'Exec', type: 'exec' } ]
+            },
+            'DestroyObject': {
+                title: 'Action: Destroy', color: '#c62828',
+                inputs: [ { id: 'execIn', label: 'Exec', type: 'exec' } ],
+                outputs: [ { id: 'execOut', label: 'Exec', type: 'exec' } ]
+            },
+            'NumberValue': {
+                title: 'Data: Number', color: '#2e7d32',
+                inputs: [ { id: 'val', label: 'Value', type: 'number', default: 0.05, isEditable: true } ],
+                outputs: [ { id: 'numOut', label: '', type: 'number' } ]
+            }
+        };
+
+        function addNode(type, x = 50, y = 100, forceId = null) {
+            const def = NODE_DEFS[type];
+            if (!def) return;
+
+            const id = forceId || `node_${nextNodeId++}`;
+            const nodeData = { id, type, x, y, inputs: {}, lastTime: 0 };
+            nodes[id] = nodeData;
+
+            const el = document.createElement('div');
+            el.className = 'node'; el.id = id;
+            el.style.left = `${x}px`; el.style.top = `${y}px`;
+
+            const header = document.createElement('div');
+            header.className = 'node-header'; header.style.backgroundColor = def.color;
+            header.innerHTML = `<span>${def.title}</span> <span class="node-delete" onclick="deleteNode('${id}')">✕</span>`;
+            
+            header.addEventListener('mousedown', (e) => {
+                isDraggingNode = true; draggedNode = el;
+                dragOffset = { x: e.clientX - el.offsetLeft, y: e.clientY - el.offsetTop };
+                document.querySelectorAll('.node').forEach(n => n.classList.remove('selected'));
+                el.classList.add('selected');
+                Object.values(nodes).forEach(n => { document.getElementById(n.id).style.zIndex = 10; });
+                el.style.zIndex = 11;
+            });
+
+            const body = document.createElement('div');
+            body.className = 'node-body';
+
+            const inCol = document.createElement('div'); inCol.className = 'pins-in';
+            def.inputs.forEach(pin => {
+                nodeData.inputs[pin.id] = pin.default || 0; 
+                const row = document.createElement('div'); row.className = 'pin-row';
+                
+                const pinContainer = createPinElement(id, pin.id, 'in', pin.type);
+                row.appendChild(pinContainer);
+
+                if (pin.isEditable) {
+                    row.innerHTML += `<span style="width: 80px;">${pin.label}</span>`;
+                    const inp = document.createElement('input');
+                    inp.type = 'number'; inp.step = '0.01'; inp.className = 'node-input'; 
+                    inp.value = pin.default;
+                    inp.id = `input_${id}_${pin.id}`; 
+                    
+                    inp.addEventListener('input', (e) => { 
+                        nodes[id].inputs[pin.id] = parseFloat(e.target.value) || 0; 
+                    });
+                    inp.addEventListener('mousedown', e => e.stopPropagation());
+                    row.appendChild(inp);
+                } else {
+                    row.innerHTML += `<span>${pin.label}</span>`;
+                }
+                inCol.appendChild(row);
+            });
+
+            const outCol = document.createElement('div'); outCol.className = 'pins-out';
+            def.outputs.forEach(pin => {
+                const row = document.createElement('div'); row.className = 'pin-row';
+                row.innerHTML = `<span>${pin.label}</span>`;
+                const pinContainer = createPinElement(id, pin.id, 'out', pin.type);
+                row.appendChild(pinContainer);
+                outCol.appendChild(row);
+            });
+
+            body.appendChild(inCol); body.appendChild(outCol);
+            el.appendChild(header); el.appendChild(body);
+            editor.appendChild(el);
+        }
+
+        function createPinElement(nodeId, pinId, io, type) {
+            const container = document.createElement('div');
+            container.className = `pin-container ${type}`;
+            container.dataset.node = nodeId;
+            container.dataset.pin = pinId;
+            container.dataset.io = io;
+            container.dataset.type = type;
+
+            const visualPin = document.createElement('div');
+            visualPin.className = 'pin';
+            container.appendChild(visualPin);
+
+            container.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                isWiring = true;
+                wireStartPin = container;
+                tempWireEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                tempWireEl.setAttribute('class', `wire wire-temp ${type}`);
+                svgLayer.appendChild(tempWireEl);
+            });
+            return container;
+        }
+
+        function deleteNode(id) {
+            wires = wires.filter(w => w.fromNode !== id && w.toNode !== id);
+            delete nodes[id];
+            document.getElementById(id).remove();
+            drawWires();
+        }
+
+        editor.addEventListener('mousemove', (e) => {
+            if (isDraggingNode && draggedNode) {
+                const newX = e.clientX - dragOffset.x;
+                const newY = e.clientY - dragOffset.y;
+                draggedNode.style.left = `${newX}px`; draggedNode.style.top = `${newY}px`;
+                nodes[draggedNode.id].x = newX; nodes[draggedNode.id].y = newY;
+                drawWires();
+            }
+
+            if (isWiring && tempWireEl) {
+                const editorRect = editor.getBoundingClientRect();
+                const startRect = wireStartPin.getBoundingClientRect();
+                const startX = startRect.left + startRect.width / 2 - editorRect.left;
+                const startY = startRect.top + startRect.height / 2 - editorRect.top;
+                const endX = e.clientX - editorRect.left;
+                const endY = e.clientY - editorRect.top;
+
+                tempWireEl.setAttribute('d', getBezierPath(startX, startY, endX, endY));
+            }
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            isDraggingNode = false;
+            draggedNode = null;
+            
+            if (isWiring) {
+                if (tempWireEl) tempWireEl.style.display = 'none';
+                const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
+                if (tempWireEl) tempWireEl.style.display = '';
+
+                const targetPin = dropTarget ? dropTarget.closest('.pin-container') : null;
+
+                if (targetPin && wireStartPin !== targetPin) {
+                    if (wireStartPin.dataset.io !== targetPin.dataset.io && wireStartPin.dataset.type === targetPin.dataset.type) {
+                        const outPin = wireStartPin.dataset.io === 'out' ? wireStartPin : targetPin;
+                        const inPin = wireStartPin.dataset.io === 'in' ? wireStartPin : targetPin;
+
+                        wires = wires.filter(w => !(w.toNode === inPin.dataset.node && w.toPin === inPin.dataset.pin));
+                        wires.push({
+                            fromNode: outPin.dataset.node, fromPin: outPin.dataset.pin,
+                            toNode: inPin.dataset.node, toPin: inPin.dataset.pin, type: outPin.dataset.type
+                        });
+                    }
+                }
+                
+                isWiring = false; wireStartPin = null;
+                if (tempWireEl) { tempWireEl.remove(); tempWireEl = null; }
+                drawWires();
+            }
+        });
+
+        function getBezierPath(x1, y1, x2, y2) {
+            const offset = Math.max(Math.abs(x2 - x1) * 0.5, 50);
+            return `M ${x1} ${y1} C ${x1 + offset} ${y1}, ${x2 - offset} ${y2}, ${x2} ${y2}`;
+        }
+
+        function drawWires() {
+            svgLayer.innerHTML = '';
+            const editorRect = editor.getBoundingClientRect();
+
+            wires.forEach(wire => {
+                const outNode = document.getElementById(wire.fromNode);
+                const inNode = document.getElementById(wire.toNode);
+                if (!outNode || !inNode) return;
+
+                const outEl = outNode.querySelector(`[data-pin="${wire.fromPin}"][data-io="out"]`);
+                const inEl = inNode.querySelector(`[data-pin="${wire.toPin}"][data-io="in"]`);
+                if (!outEl || !inEl) return;
+
+                const outRect = outEl.getBoundingClientRect();
+                const inRect = inEl.getBoundingClientRect();
+
+                const startX = outRect.left + outRect.width / 2 - editorRect.left;
+                const startY = outRect.top + outRect.height / 2 - editorRect.top;
+                const endX = inRect.left + inRect.width / 2 - editorRect.left;
+                const endY = inRect.top + inRect.height / 2 - editorRect.top;
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', getBezierPath(startX, startY, endX, endY));
+                path.setAttribute('class', `wire ${wire.type}`);
+                svgLayer.appendChild(path);
+            });
+        }
+
+        /** ==========================================
+         * PART 3: EXECUTION LOGIC & TIMERS
+         * ========================================== */
+
+        const clock = new THREE.Clock();
+
+        function evaluateDataPin(targetNodeId, targetPinId) {
+            const wire = wires.find(w => w.toNode === targetNodeId && w.toPin === targetPinId);
+            if (!wire) return nodes[targetNodeId].inputs[targetPinId] || 0; 
+            
+            const sourceNode = nodes[wire.fromNode];
+            if (sourceNode.type === 'NumberValue') {
+                return sourceNode.inputs['val'] || 0;
+            }
+            return 0;
+        }
+
+        // Dedicated function to traverse the execution flow
+        function runExecutionChain(startNodeId, startPin) {
+            let currentNodeId = startNodeId;
+            let currentExecPin = startPin;
+            let executionLimit = 50; // Safety catch
+
+            while (executionLimit > 0 && !isObjectDestroyed) {
+                executionLimit--;
+                const nextWire = wires.find(w => w.fromNode === currentNodeId && w.fromPin === currentExecPin && w.type === 'exec');
+                if (!nextWire) break; 
+
+                const nextNode = nodes[nextWire.toNode];
+                
+                if (nextNode.type === 'RotateObject') {
+                    targetObject.rotation.x += evaluateDataPin(nextNode.id, 'rotX');
+                    targetObject.rotation.y += evaluateDataPin(nextNode.id, 'rotY');
+                    currentNodeId = nextNode.id; currentExecPin = 'execOut';
+                } 
+                else if (nextNode.type === 'MoveObject') {
+                    targetObject.position.x += evaluateDataPin(nextNode.id, 'moveX');
+                    targetObject.position.y += evaluateDataPin(nextNode.id, 'moveY');
+                    targetObject.position.z += evaluateDataPin(nextNode.id, 'moveZ');
+                    currentNodeId = nextNode.id; currentExecPin = 'execOut';
+                }
+                else if (nextNode.type === 'SetColor') {
+                    // Normalize RGB 0-255 values down to Three.js 0.0-1.0 format
+                    const r = Math.max(0, Math.min(255, evaluateDataPin(nextNode.id, 'r'))) / 255;
+                    const g = Math.max(0, Math.min(255, evaluateDataPin(nextNode.id, 'g'))) / 255;
+                    const b = Math.max(0, Math.min(255, evaluateDataPin(nextNode.id, 'b'))) / 255;
+                    targetObject.material.color.setRGB(r, g, b);
+                    currentNodeId = nextNode.id; currentExecPin = 'execOut';
+                }
+                else if (nextNode.type === 'DestroyObject') {
+                    scene.remove(targetObject);
+                    isObjectDestroyed = true;
+                    currentNodeId = nextNode.id; currentExecPin = 'execOut';
+                }
+                else {
+                    break; // Unknown execution node
+                }
+            }
+        }
+
+        function executeGraph(delta) {
+            if (isObjectDestroyed) return;
+
+            // 1. Process standard Frame Ticks
+            Object.values(nodes).filter(n => n.type === 'EventTick').forEach(tickNode => {
+                runExecutionChain(tickNode.id, 'execOut');
+            });
+
+            // 2. Process Timer Ticks
+            Object.values(nodes).filter(n => n.type === 'EventTimer').forEach(timerNode => {
+                if (timerNode.lastTime === undefined) timerNode.lastTime = 0;
+                timerNode.lastTime += delta;
+                
+                const interval = evaluateDataPin(timerNode.id, 'interval');
+                
+                // Prevent infinite spam if interval is 0
+                if (interval > 0.01 && timerNode.lastTime >= interval) {
+                    runExecutionChain(timerNode.id, 'execOut');
+                    timerNode.lastTime = 0; // Reset internal clock for this node
+                }
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            executeGraph(delta);
+            renderer.render(scene, camera);
+        }
+
+        /** ==========================================
+         * PART 4: NATIVE PC FILE I/O
+         * ========================================== */
+        
+        function saveSystemToPC() {
+            const data = { nodes, wires, nextNodeId };
+            const jsonString = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "supe_blueprint.json";
+            document.body.appendChild(a);
+            a.click();
+            
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function loadSystemFromPC() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        clearSystem(false); 
+                        
+                        nextNodeId = data.nextNodeId;
+                        wires = data.wires;
+
+                        Object.values(data.nodes).forEach(nData => {
+                            addNode(nData.type, nData.x, nData.y, nData.id);
+                            
+                            Object.keys(nData.inputs).forEach(pinId => {
+                                nodes[nData.id].inputs[pinId] = nData.inputs[pinId];
+                                const domInput = document.getElementById(`input_${nData.id}_${pinId}`);
+                                if (domInput) domInput.value = nData.inputs[pinId];
+                            });
+                        });
+
+                        setTimeout(drawWires, 50); 
+                    } catch (err) {
+                        alert("Failed to parse JSON file. Ensure it is a valid blueprint save.");
+                        console.error(err);
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        function clearSystem(confirmPrompt = true) {
+            if (confirmPrompt && !confirm('Clear all logic on canvas?')) return;
+            document.querySelectorAll('.node').forEach(n => n.remove());
+            nodes = {}; wires = []; svgLayer.innerHTML = '';
+        }
+
+        // Initialize Example View with Timer and Color
+        addNode('EventTimer', 50, 50);
+        addNode('SetColor', 350, 50);
+        
+        addNode('EventTick', 50, 250);
+        addNode('RotateObject', 350, 250);
+        
+        setTimeout(drawWires, 100);
+        
+        animate();
+    </script>
+</body>
+</html>
